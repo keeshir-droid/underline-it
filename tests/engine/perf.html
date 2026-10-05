@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Underline: frame cost</title>
+<!--
+  Engine test page (never deployed). Times card.drawFrame (story, scale 1, as the video export calls it) for each finish over
+  the whole timeline, then the real video export of one finish.
+    tests/engine/perf.html                  every finish: ms per frame (first, then average of 30 frames); then makeVideo for ?finish=torn
+    tests/engine/perf.html?video=0          frames only
+    tests/engine/perf.html?finish=film      video for that finish
+-->
+<style>body { font: 13px/1.5 system-ui, sans-serif; background: #f6f2ea; padding: 12px 16px; } pre { background: #fff; padding: 8px; }</style>
+<style>@font-face { font-family: "Caveat"; font-weight: 600; src: url("../../fonts/caveat-600.woff2") format("woff2"); }</style>
+</head>
+<body>
+<pre id="log">starting ...</pre>
+<script src="../../src/engine/util.js"></script>
+<script src="../../src/engine/decode.js"></script>
+<script src="../../src/engine/clean.js"></script>
+<script src="../../src/engine/lines.js"></script>
+<script src="../../src/engine/mark.js"></script>
+<script src="../../src/engine/finishes.js"></script>
+<script src="../../src/engine/card.js"></script>
+<script src="../../src/engine/sample.js"></script>
+<script src="../../src/engine/export.js"></script>
+<script>
+(async function () {
+  const q = new URLSearchParams(location.search);
+  { const h = document.createElement("script"); h.src = "/hold?ms=" + (q.get("hold") || 12000); document.head.appendChild(h); } // test server only: keeps the load open so a headless screenshot waits
+  const log = document.getElementById("log");
+  function say(s) { log.textContent += "\n" + s; }
+  log.textContent = "";
+  try {
+    const s = await UL.sample.load();
+    const card = await UL.card.create(s.page, s.strokes, s.settings);
+    const c = document.createElement("canvas"); c.width = 1080; c.height = 1920;
+    const ctx = c.getContext("2d", { alpha: false });
+    for (const f of UL.FINISHES) {
+      await card.update({ finish: f.id });
+      const t0 = performance.now(); card.drawFrame(ctx, 0.2, "story", 1); const first = performance.now() - t0;
+      const t1 = performance.now();
+      for (let i = 0; i < 30; i++) card.drawFrame(ctx, i * (UL.END / 30), "story", 1);
+      ctx.getImageData(0, 0, 1, 1); // make the GPU/canvas finish its queue before the clock stops
+      say(f.id.padEnd(9) + "first frame " + first.toFixed(0) + " ms, then " + ((performance.now() - t1) / 30).toFixed(1) + " ms per frame (30 frames, story, scale 1)");
+    }
+    if (q.get("breakdown")) { // where does a frame's time go? (story, scale 1, torn unless ?finish=)
+      const fin = UL.finishes.get(q.get("finish") || "torn");
+      await card.update({ finish: fin.id });
+      const info = UL.finishes.labelInfo(card.settings, new Date()); info.labelAlpha = 1; info.scale = 1;
+      const img = s.page.image, crop = card._crop("story"), rect = fin.picRect("story");
+      function time(name, fn) { fn(); ctx.getImageData(0, 0, 1, 1); const t0 = performance.now(); for (let i = 0; i < 20; i++) fn(); ctx.getImageData(0, 0, 1, 1); say("  " + name.padEnd(34) + ((performance.now() - t0) / 20).toFixed(1) + " ms"); }
+      say("breakdown (" + fin.id + ", story, scale 1):");
+      time("background blit", function () { card._drawBackground(ctx, fin, "story", 1); });
+      time("piece decorations only (no picture)", function () { ctx.save(); fin.piece(ctx, "story", function () {}, info); ctx.restore(); });
+      time("overlay (label, mark)", function () { ctx.save(); fin.overlay(ctx, "story", info, 1); ctx.restore(); });
+      time("page drawImage (rotated, high q)", function () { ctx.save(); ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.w, rect.h); ctx.clip(); ctx.translate(rect.x + rect.w / 2, rect.y + rect.h / 2); ctx.scale(rect.w / crop.w, rect.w / crop.w); ctx.rotate(-crop.theta); ctx.translate(-540, -800); ctx.drawImage(img, 0, 0, s.page.width, s.page.height); ctx.restore(); });
+      ctx.imageSmoothingQuality = "low";
+      time("page drawImage (low q)", function () { ctx.save(); ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.w, rect.h); ctx.clip(); ctx.translate(rect.x + rect.w / 2, rect.y + rect.h / 2); ctx.scale(rect.w / crop.w, rect.w / crop.w); ctx.rotate(-crop.theta); ctx.translate(-540, -800); ctx.drawImage(img, 0, 0, s.page.width, s.page.height); ctx.restore(); });
+      ctx.imageSmoothingQuality = "high";
+      time("strokes (done)", function () { ctx.save(); UL.mark.drawAll(ctx, card.strokes, { mark: "highlighter", colour: "yellow", progress: 1 }); ctx.restore(); });
+      time("strokes (half swept)", function () { ctx.save(); UL.mark.drawAll(ctx, card.strokes, { mark: "highlighter", colour: "yellow", progress: 0.5 }); ctx.restore(); });
+      time("fade the rest", function () { ctx.save(); UL.mark.fadeRest(ctx, card.strokes, { x: 0, y: 0, w: 1080, h: 1500 }, { amount: 0.55, progress: 1, paper: "#f7f1e6" }); ctx.restore(); });
+      time("whole frame t=1.4 (sweeping)", function () { card.drawFrame(ctx, 1.4, "story", 1); });
+      time("whole frame t=4 (hold)", function () { card.drawFrame(ctx, 4, "story", 1); });
+    }
+    if (q.get("video") !== "0") {
+      const fin = q.get("finish") || "torn";
+      await card.update({ finish: fin });
+      let t0 = performance.now(), last = 0, monotone = true;
+      const vid = await UL.export.makeVideo(card, { onProgress: function (p) { if (p < last) monotone = false; last = p; } });
+      say("video (" + fin + "): " + vid.name + " " + Math.round(vid.size / 1024) + " KB in " + ((performance.now() - t0) / 1000).toFixed(2) + " s; progress ended at " + last + ", monotone " + monotone);
+    }
+    if (q.get("abort")) { // cancelling mid-way must reject with code "cancelled" and stop reporting progress
+      const ac = new AbortController(); let n = 0, after = 0, aborted = false;
+      setTimeout(function () { aborted = true; ac.abort(); }, 400);
+      try { await UL.export.makeVideo(card, { signal: ac.signal, onProgress: function () { n++; if (aborted) after++; } }); say("abort: NOT cancelled (video finished)"); }
+      catch (e) { say("abort: rejected with code " + e.code + " after " + n + " progress calls (" + after + " after the abort)"); }
+    }
+    say("done");
+  } catch (e) { say("ERROR " + (e && (e.code || "")) + " " + (e && (e.stack || e.message || e))); }
+})();
+</script>
+</body>
+</html>

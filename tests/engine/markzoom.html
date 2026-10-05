@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Underline: marker zoom test page</title>
+<!--
+  Engine test page (never deployed). Draws the marker on the sample page, on a real photo, and on a plain strip, each at 1:1
+  and at 3x, so the stroke's edges, ends and streaks can be judged.
+    tests/engine/markzoom.html                      sample page + lamp photo (tests/out/phone-b-lamp-small.jpg)
+    ?photo=real/<file> or out/<file>                a different photo for the second row
+    ?colour=pink&mark=underline
+-->
+<style>
+  body { margin: 0; padding: 10px 14px 30px; background: #777; font: 12px system-ui, sans-serif; color: #fff; }
+  figure { margin: 0 0 10px; } figcaption { margin: 2px 0 3px; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<div id="meta">loading ...</div>
+<div id="out"></div>
+<script src="../../src/engine/util.js"></script>
+<script src="../../src/engine/decode.js"></script>
+<script src="../../src/engine/clean.js"></script>
+<script src="../../src/engine/lines.js"></script>
+<script src="../../src/engine/mark.js"></script>
+<script src="../../src/engine/finishes.js"></script>
+<script src="../../src/engine/card.js"></script>
+<script src="../../src/engine/sample.js"></script>
+<script>
+(async function () {
+  const q = new URLSearchParams(location.search);
+  if (q.get("hold")) { const h = document.createElement("script"); h.src = "/hold?ms=" + q.get("hold"); document.head.appendChild(h); } // tests/engine/hold_server.py only
+  const out = document.getElementById("out"), meta = document.getElementById("meta");
+  const mark = q.get("mark") || "highlighter";
+  function strokeOn(pg, L, f0, f1, seed) {
+    const a = L.x0 + f0 * (L.x1 - L.x0), b = L.x0 + f1 * (L.x1 - L.x0);
+    const s = UL.page.snap(pg, [{ x: a, y: L.a + L.slope * a }, { x: b, y: L.a + L.slope * b }]);
+    if (seed) s.seed = seed;
+    return s;
+  }
+  function show(pg, strokes, title, zoom) {
+    const c = document.createElement("canvas"); c.width = pg.width; c.height = pg.height;
+    const x = c.getContext("2d");
+    x.drawImage(pg.image, 0, 0);
+    const t0 = performance.now();
+    strokes.forEach(function (s, i) { UL.mark.draw(x, s, { mark: mark, colour: q.get("colour") || ["yellow", "pink", "green", "blue"][i % 4] }); });
+    const ms = performance.now() - t0;
+    strokes.forEach(function (s, i) {
+      const g = UL.mark.geometry(s), bb = g.bbox, pad = 14;
+      const sx = Math.max(0, bb.x0 - pad), sy = Math.max(0, bb.y0 - pad - s.height * 0.8), sw = Math.min(pg.width - sx, Math.min(bb.x1 - bb.x0 + 2 * pad, 560)), sh = (bb.y1 - bb.y0) + 2 * pad + s.height * 1.6;
+      const fig = document.createElement("figure");
+      const cap = document.createElement("figcaption"); cap.textContent = title + " stroke " + (i + 1) + ": H=" + s.height.toFixed(1) + " L=" + (s.x1 - s.x0).toFixed(0) + " (draw all " + ms.toFixed(0) + " ms)";
+      fig.appendChild(cap);
+      const z = document.createElement("canvas"); z.width = Math.round(sw * zoom); z.height = Math.round(sh * zoom);
+      const zc = z.getContext("2d"); zc.imageSmoothingEnabled = true; zc.imageSmoothingQuality = "high";
+      zc.drawImage(c, sx, sy, sw, sh, 0, 0, z.width, z.height);
+      const o = document.createElement("canvas"); o.width = Math.round(sw); o.height = Math.round(sh);
+      o.getContext("2d").drawImage(c, sx, sy, sw, sh, 0, 0, o.width, o.height);
+      fig.appendChild(o); const sp = document.createElement("div"); sp.style.height = "4px"; fig.appendChild(sp); fig.appendChild(z);
+      out.appendChild(fig);
+    });
+  }
+  try {
+    const s = await UL.sample.load();
+    const zoom = parseFloat(q.get("zoom") || "3");
+    const sp = s.page, base = s.strokes[0];
+    const near = sp.lines.slice().sort(function (a, b) { return Math.abs(a.a - base.y) - Math.abs(b.a - base.y); });
+    if (q.get("only") !== "photo") {
+      { // the sweep: the same stroke at progress 0.12, 0.4, 0.7, 1 (cropped to the stroke), 2x
+        const g = UL.mark.geometry(base), bb = g.bbox, pad = 14, sw = Math.min(560, bb.x1 - bb.x0 + 2 * pad), sh = (bb.y1 - bb.y0) + 2 * pad + base.height;
+        const fig = document.createElement("figure"), cap = document.createElement("figcaption"); cap.textContent = "sweep: progress 0.12, 0.4, 0.7, 1"; fig.appendChild(cap);
+        [0.12, 0.4, 0.7, 1].forEach(function (pr) {
+          const c = document.createElement("canvas"); c.width = Math.round(sw * 2); c.height = Math.round(sh * 2);
+          const x = c.getContext("2d"); x.scale(2, 2); x.translate(-(bb.x0 - pad), -(bb.y0 - pad - base.height * 0.4));
+          x.drawImage(sp.image, 0, 0); UL.mark.draw(x, base, { mark: mark, colour: q.get("colour") || "yellow", progress: pr }); fig.appendChild(c);
+        });
+        out.appendChild(fig);
+      }
+      show(sp, [base], "sample", zoom);
+      const L2 = sp.lines[Math.min(sp.lines.length - 1, sp.lines.indexOf(near[0]) + 4)];
+      show(sp, [strokeOn(sp, L2, 0.05, 0.5, 77), strokeOn(sp, sp.lines[sp.lines.indexOf(near[0]) + 6], 0.1, 0.95, 31)], "sample2", zoom);
+    }
+    const f = q.get("photo") || "out/phone-b-lamp-small.jpg";
+    const res = await fetch("../" + f); const blob = await res.blob();
+    const img = await UL.decode.fileToImageData(new File([blob], "p.jpg", { type: blob.type || "image/jpeg" }), { maxSide: 2000 });
+    const pg = await UL.page.prepare(img);
+    const ls = pg.lines.slice().sort(function (a, b) { return Math.abs(a.a - pg.height * 0.45) - Math.abs(b.a - pg.height * 0.45); });
+    const i0 = pg.lines.indexOf(ls[0]);
+    show(pg, [strokeOn(pg, ls[0], 0.1, 0.7, 5), pg.lines[i0 + 2] ? strokeOn(pg, pg.lines[i0 + 2], 0.2, 0.6, 9) : null].filter(Boolean), f, zoom);
+    meta.textContent = "lines: sample " + sp.lines.length + ", photo " + pg.lines.length;
+    window.__done = true;
+  } catch (e) { meta.textContent = "ERROR: " + (e && (e.stack || e.message || e)); }
+})();
+</script>
+</body>
+</html>

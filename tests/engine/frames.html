@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Underline: card frames test page</title>
+<!--
+  Engine test page (never deployed). Draws card.drawFrame for the built-in sample.
+    tests/engine/frames.html                          grid: every finish, square and story, at t = END
+    tests/engine/frames.html?mode=timeline&finish=torn&format=square     the animation as frames
+    tests/engine/frames.html?mode=single&finish=film&format=story&t=5&scale=0.6
+    &mark=underline &colour=pink &fade=0 &title=... &page=... &note=...  settings
+-->
+<style>
+  body { margin: 0; padding: 14px 18px 40px; background: #888; font: 13px system-ui, sans-serif; color: #111; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 12px; }
+  figure { margin: 0; } figcaption { color: #fff; margin: 2px 0 6px; }
+  canvas { display: block; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+  #meta { color: #fff; margin-bottom: 8px; }
+</style>
+<link rel="preload" href="../../fonts/caveat-600.woff2" as="font" type="font/woff2" crossorigin>
+<style>@font-face { font-family: "Caveat"; font-weight: 600; src: url("../../fonts/caveat-600.woff2") format("woff2"); }</style>
+</head>
+<body>
+<div id="meta">loading ...</div>
+<div id="out"></div>
+<script src="../../src/engine/util.js"></script>
+<script src="../../src/engine/decode.js"></script>
+<script src="../../src/engine/clean.js"></script>
+<script src="../../src/engine/lines.js"></script>
+<script src="../../src/engine/mark.js"></script>
+<script src="../../src/engine/finishes.js"></script>
+<script src="../../src/engine/card.js"></script>
+<script src="../../src/engine/sample.js"></script>
+<script>
+(async function () {
+  const q = new URLSearchParams(location.search);
+  if (q.get("hold")) { const h = document.createElement("script"); h.src = "/hold?ms=" + q.get("hold"); document.head.appendChild(h); } // test server only: keeps the load open so a headless screenshot waits
+  const out = document.getElementById("out"), meta = document.getElementById("meta");
+  const mode = q.get("mode") || "grid";
+  function fig(row, finish, format, t, scale, card, caption) {
+    const W = 1080, H = format === "story" ? 1920 : 1080;
+    const c = document.createElement("canvas"); c.width = Math.round(W * scale); c.height = Math.round(H * scale);
+    const t0 = performance.now();
+    card.drawFrame(c.getContext("2d"), t, format, scale);
+    const ms = performance.now() - t0;
+    if (q.get("guides") === "1") { // the story safe zone: y 270..1540, 90 px sides (red dashes); square: the 60 px box
+      const g = c.getContext("2d"); g.save(); g.scale(scale, scale); g.strokeStyle = "#ff1744"; g.lineWidth = 2 / scale; g.setLineDash([10, 8]);
+      if (format === "story") g.strokeRect(90, 270, 900, 1270); else g.strokeRect(60, 60, 960, 960);
+      g.restore();
+    }
+    const f = document.createElement("figure"); f.appendChild(c);
+    const cap = document.createElement("figcaption"); cap.textContent = caption + " (" + ms.toFixed(0) + " ms)"; f.appendChild(cap);
+    row.appendChild(f);
+  }
+  try {
+    const t0 = performance.now();
+    let s = await UL.sample.load();
+    if (q.get("photo")) { // &photo=real/<file> or out/<file>: a real photo, prepared, with a stroke snapped on a line near the middle
+      const res = await fetch("../" + q.get("photo")); const blob = await res.blob();
+      const img = await UL.decode.fileToImageData(new File([blob], "p.jpg", { type: blob.type || "image/jpeg" }), { maxSide: 2000 });
+      const pg = await UL.page.prepare(img);
+      const ls = pg.lines.slice().sort(function (a, b) { return Math.abs((a.top + a.bottom) / 2 - pg.height * 0.45) - Math.abs((b.top + b.bottom) / 2 - pg.height * 0.45); });
+      const strokes = [];
+      const L = ls[parseInt(q.get("line") || "0", 10)];
+      if (L) { const a = L.x0 + 0.12 * (L.x1 - L.x0), b = L.x0 + 0.75 * (L.x1 - L.x0); strokes.push(UL.page.snap(pg, [{ x: a, y: L.a + L.slope * a }, { x: b, y: L.a + L.slope * b }])); }
+      s = { page: pg, strokes: strokes, settings: { finish: "torn", title: q.get("title") || "", page: q.get("page") || "" } };
+    }
+    const loadMs = performance.now() - t0;
+    const set = Object.assign({}, s.settings);
+    ["mark", "colour", "title", "page", "note"].forEach(function (k) { if (q.get(k) !== null) set[k] = q.get(k); });
+    if (q.get("fade") !== null) set.fade = q.get("fade") === "1";
+    const card = await UL.card.create(s.page, s.strokes, set);
+    meta.textContent = "P=" + s.page._debug.P + " theta=" + s.page._debug.theta.toFixed(1) + " ww=" + s.page._debug.ww + " | sample loaded in " + loadMs.toFixed(0) + " ms; lines found: " + s.page.lines.length + "; strokes: " + s.strokes.length + (s.strokes[0] ? " (snapped: " + s.strokes[0].snapped + ")" : "");
+    const finishes = q.get("finish") ? [q.get("finish")] : UL.FINISHES.map(function (f) { return f.id; });
+    if (q.get("debug")) { // numbers: the crop of each finish, and where the lines are (page px)
+      const fin = finishes[0], fmt = q.get("format") || "square";
+      await card.update({ finish: fin });
+      const cr = card._crop(fmt);
+      const pre = document.createElement("pre"); pre.style.cssText = "color:#fff;font:12px monospace;white-space:pre-wrap";
+      pre.textContent = "crop " + JSON.stringify(cr, function (k, v) { return typeof v === "number" ? Math.round(v * 100) / 100 : v; }) + "\npage " + s.page.width + "x" + s.page.height +
+        "\ntop=" + (cr.cv - cr.h / 2).toFixed(1) + " bottom=" + (cr.cv + cr.h / 2).toFixed(1) + "\nlines (a, slope, height): " + s.page.lines.map(function (l) { return [l.a.toFixed(0), l.slope.toFixed(3), l.height.toFixed(0)].join("/"); }).join("  ");
+      out.appendChild(pre);
+    }
+    if (mode === "preview") {
+      // the live preview: canvases with no width/height attributes, sized by CSS
+      const row = document.createElement("div"); row.className = "row"; out.appendChild(row);
+      const a = document.createElement("canvas"); a.style.cssText = "width:360px;height:360px;background:#fff";
+      const b2 = document.createElement("canvas"); b2.style.cssText = "width:225px;height:400px;background:#fff";
+      row.appendChild(a); row.appendChild(b2);
+      const pa = UL.card.startPreview(a, card, "square"), pb = UL.card.startPreview(b2, card, "story");
+      window.__preview = [pa, pb];
+      meta.textContent += " | preview running (screenshot catches a frame mid-animation)";
+      await new Promise(function (r) { setTimeout(r, parseFloat(q.get("wait") || "2400")); });
+      meta.textContent += " | canvas sizes " + a.width + "x" + a.height + ", " + b2.width + "x" + b2.height + " (dpr " + devicePixelRatio + ")";
+    } else if (mode === "lines") {
+      const pg = s.page, k = 0.7, c = document.createElement("canvas"); c.width = pg.width * k; c.height = pg.height * k;
+      const x = c.getContext("2d"); x.drawImage(pg.image, 0, 0, c.width, c.height); x.scale(k, k);
+      pg.lines.forEach(function (l, i) {
+        const hv = l.height * Math.sqrt(1 + l.slope * l.slope);
+        x.fillStyle = "hsla(" + (i * 47 % 360) + ",85%,45%,.3)"; x.beginPath();
+        x.moveTo(l.x0, l.a + l.slope * l.x0 - hv / 2); x.lineTo(l.x1, l.a + l.slope * l.x1 - hv / 2); x.lineTo(l.x1, l.a + l.slope * l.x1 + hv / 2); x.lineTo(l.x0, l.a + l.slope * l.x0 + hv / 2); x.fill();
+      });
+      UL.mark.drawAll(x, s.strokes, { mark: set.mark, colour: set.colour });
+      const f = document.createElement("figure"); f.appendChild(c); out.appendChild(f);
+      meta.textContent += " | lines " + pg.lines.map(function (l) { return Math.round(l.height) + "px@" + Math.round(l.x1 - l.x0); }).slice(0, 12).join(", ");
+    } else if (mode === "timeline") {
+      const fmt = q.get("format") || "square", fin = finishes[0];
+      await card.update({ finish: fin });
+      const row = document.createElement("div"); row.className = "row"; out.appendChild(row);
+      [0.15, 0.4, 0.9, 1.4, 1.9, 2.6, 3.3, 5].forEach(function (t) { fig(row, fin, fmt, t, fmt === "story" ? 0.27 : 0.4, card, fin + " " + fmt + " t=" + t); });
+    } else if (mode === "single") {
+      const fmt = q.get("format") || "square", fin = finishes[0], t = parseFloat(q.get("t") || "5"), sc = parseFloat(q.get("scale") || "0.8");
+      await card.update({ finish: fin });
+      const row = document.createElement("div"); row.className = "row"; out.appendChild(row);
+      fig(row, fin, fmt, t, sc, card, fin + " " + fmt + " t=" + t);
+    } else {
+      const sq = document.createElement("div"); sq.className = "row"; out.appendChild(sq);
+      for (const fin of finishes) { await card.update({ finish: fin }); fig(sq, fin, "square", 5, 0.45, card, fin + " square, t=END"); }
+      const st = document.createElement("div"); st.className = "row"; out.appendChild(st);
+      for (const fin of finishes) { await card.update({ finish: fin }); fig(st, fin, "story", 5, 0.26, card, fin + " story, t=END"); }
+    }
+    window.__done = true;
+  } catch (e) { meta.textContent = "ERROR: " + (e && (e.stack || e.message || e)); }
+})();
+</script>
+</body>
+</html>

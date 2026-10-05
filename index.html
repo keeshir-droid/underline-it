@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Underline: highlight the line you love, without ruining your book</title>
+  <meta name="description" content="Photograph a page, swipe over the line you love, and keep it as a card or a story video. Free, no account, and your photo stays on your phone.">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f6f2ea">
+  <meta property="og:title" content="Underline: highlight the line you love, without ruining your book">
+  <meta property="og:description" content="Snap a page, swipe the line you love, keep it as a card or a story. Free. Nothing leaves your phone.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f3a5f'/%3E%3Crect x='5' y='16' width='22' height='8' rx='2' fill='%23ffe45c'/%3E%3Cpath d='M10 7v10M16 7v10M22 7v10' stroke='%23fffdf8' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preload" href="fonts/caveat-600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="src/styles.css">
+  <!-- Vercel Web Analytics (page views). Same-origin once deployed; a harmless 404 until it is switched on in the Vercel dashboard. -->
+  <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+  <script defer src="/_vercel/insights/script.js" onerror="this.remove()"></script>
+</head>
+<body data-screen="landing">
+  <noscript>
+    <div class="noscript">
+      <h1>Underline needs JavaScript</h1>
+      <p>Switch it on in your browser settings and give this page a refresh. Then snap a page.</p>
+    </div>
+  </noscript>
+
+  <div id="app">
+
+    <!-- 1. Landing -->
+    <section id="screen-landing" class="screen landing is-active" aria-label="Underline">
+      <header class="top top-landing">
+        <a class="wordmark" href="./" aria-label="underline, home"><span>underline</span></a>
+      </header>
+      <main class="landing-main">
+        <h1 class="headline" tabindex="-1">Highlight <span class="hl">the line you love</span>, without ruining your book.</h1>
+
+        <div class="hero" id="hero">
+          <svg class="hero-tape" viewBox="0 0 120 34" aria-hidden="true" focusable="false">
+            <path d="M3 4 L117 1 L113 15 L117 30 L5 33 L9 18 Z" fill="#f1c7d4" fill-opacity=".9"/>
+            <path d="M14 3 L22 3 L18 31 L10 31 Z M44 2 L52 2 L48 32 L40 32 Z M74 2 L82 2 L78 32 L70 32 Z M104 1 L112 1 L108 31 L100 31 Z" fill="#fff" fill-opacity=".35"/>
+          </svg>
+          <div class="hero-card" id="heroCard" role="img" aria-label="A book page with a yellow highlighter sweeping across one line, on a torn-paper card">
+            <svg class="hero-fallback" viewBox="0 0 300 300" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid slice">
+              <rect width="300" height="300" fill="#e4dccb"/>
+              <path d="M0 40 H300 M0 80 H300 M0 120 H300 M0 160 H300 M0 200 H300 M0 240 H300 M0 280 H300" stroke="#d9cfba" stroke-width="1" opacity=".6"/>
+              <path d="M26 58 L40 62 L58 56 L80 63 L104 57 L130 62 L158 56 L186 62 L214 57 L242 63 L274 58 L274 242 L250 247 L222 241 L196 247 L170 242 L142 248 L116 242 L88 247 L62 242 L36 247 L26 242 Z" fill="#fbf6ea"/>
+              <g fill="#3a3a3a" opacity=".78">
+                <rect x="48" y="84" width="196" height="6" rx="3"/>
+                <rect x="48" y="102" width="182" height="6" rx="3"/>
+                <rect x="48" y="120" width="204" height="6" rx="3"/>
+                <rect x="48" y="138" width="170" height="6" rx="3"/>
+                <rect x="48" y="156" width="198" height="6" rx="3"/>
+                <rect x="48" y="174" width="188" height="6" rx="3"/>
+                <rect x="48" y="192" width="120" height="6" rx="3"/>
+              </g>
+              <rect class="hero-hl" x="44" y="115" width="212" height="19" rx="4" fill="#ffe45c" opacity=".7" style="mix-blend-mode:multiply"/>
+            </svg>
+            <canvas id="heroCanvas" class="hero-canvas" aria-hidden="true"></canvas>
+          </div>
+        </div>
+
+        <div class="cta">
+          <button id="btnSnap" class="btn btn-primary btn-xl" type="button"><span data-icon="camera" aria-hidden="true"></span><span>Snap a page</span></button>
+        </div>
+        <p class="links">
+          <button id="btnChoose" class="link" type="button">Choose a photo</button>
+          <span class="dot" aria-hidden="true">&middot;</span>
+          <button id="btnSample" class="link" type="button">Try it on a sample</button>
+        </p>
+        <p class="trust"><span class="ico" data-icon="lock" aria-hidden="true"></span><span>Free. No account. Your photo never leaves your phone.</span></p>
+        <p class="desk-hint">On a computer? Paste a photo or drop one right here.</p>
+      </main>
+      <div data-footer></div>
+    </section>
+
+    <!-- Getting the page ready -->
+    <section id="screen-working" class="screen working" aria-live="polite" aria-label="Getting your page ready">
+      <div class="work-card">
+        <div class="work-photo" id="workPhoto"><img id="workImg" alt="" hidden></div>
+      </div>
+      <div class="spinner" aria-hidden="true"></div>
+      <p class="work-line" id="workLine">Warming up the paper&hellip;</p>
+    </section>
+
+    <!-- 2. Editor: swipe over the line -->
+    <section id="screen-editor" class="screen editor" aria-label="Pick your line">
+      <header class="top">
+        <button id="btnEditorBack" class="btn-back" type="button"><span data-icon="back" aria-hidden="true"></span><span>New page</span></button>
+        <h1 class="top-title">Your line</h1>
+        <span class="top-spacer" aria-hidden="true"></span>
+      </header>
+      <div class="stage" id="stage">
+        <div class="page-wrap" id="pageWrap">
+          <canvas id="editCanvas" tabindex="0" role="img" aria-label="Your page. Drag a finger across a line to mark it. With a keyboard, use the up and down arrows to choose a line and Enter to mark it."></canvas>
+          <div class="hint" id="hint" aria-hidden="true">
+            <div class="hint-track">
+              <span class="hint-trail"></span>
+              <svg class="hint-finger" viewBox="0 0 44 56" focusable="false">
+                <circle cx="22" cy="8" r="9" fill="#1f3a5f" fill-opacity=".16"/>
+                <rect x="16" y="3" width="12" height="32" rx="6" fill="#f4cfae" stroke="#b98a68" stroke-width="2"/>
+                <rect x="9" y="26" width="26" height="27" rx="10" fill="#f4cfae" stroke="#b98a68" stroke-width="2"/>
+              </svg>
+            </div>
+            <p class="hint-text">Swipe across the line you love.</p>
+          </div>
+        </div>
+      </div>
+      <p class="caption" id="caption" aria-live="polite"></p>
+      <p class="caption caption-soft" id="smallNote" hidden>This photo is small, so it may look soft. A bigger one will look sharper.</p>
+      <div class="bar bar-editor">
+        <button id="btnUndo" class="btn btn-ghost" type="button"><span data-icon="undo" aria-hidden="true"></span><span>Undo</span></button>
+        <button id="btnClear" class="btn btn-ghost" type="button"><span data-icon="clear" aria-hidden="true"></span><span>Clear</span></button>
+        <button id="btnNext" class="btn btn-primary" type="button"><span>Next</span><span data-icon="next" aria-hidden="true"></span></button>
+      </div>
+    </section>
+
+    <!-- 3. Style: make it yours -->
+    <section id="screen-style" class="screen style" aria-label="Make it yours">
+      <header class="top">
+        <button id="btnStyleBack" class="btn-back" type="button"><span data-icon="back" aria-hidden="true"></span><span>Back</span></button>
+        <h1 class="top-title">Make it yours</h1>
+        <span class="top-spacer" aria-hidden="true"></span>
+      </header>
+      <main class="style-main">
+        <div class="preview" id="previewWrap"><canvas id="styleCanvas" role="img" aria-label="Preview of your card"></canvas></div>
+
+        <!-- Right under the preview, where the words will appear. Closed until tapped. -->
+        <details class="labels" id="labels">
+          <summary>
+            <span class="lab-ico" data-icon="book" aria-hidden="true"></span>
+            <span class="lab-text"><strong id="labelsTitle">Add the book title &amp; page</strong><small id="labelsHint">So your card says where it's from.</small></span>
+            <span class="lab-plus" aria-hidden="true"></span>
+          </summary>
+          <div class="fields">
+            <label class="field"><span>Book title</span><input id="fTitle" type="text" maxlength="60" autocomplete="off" autocapitalize="words" enterkeyhint="next" placeholder="Jane Eyre"></label>
+            <label class="field"><span>Page</span><input id="fPage" type="text" inputmode="numeric" maxlength="8" autocomplete="off" enterkeyhint="next" placeholder="252"></label>
+            <label class="field"><span>A short note</span><input id="fNote" type="text" maxlength="60" autocomplete="off" enterkeyhint="done" placeholder="read this twice"></label>
+            <p class="small">The date is added for you.</p>
+          </div>
+        </details>
+
+        <div class="panel">
+          <div class="ctl">
+            <h2 class="ctl-title" id="lblMark">Mark</h2>
+            <div class="chips" id="markRow" role="group" aria-labelledby="lblMark"></div>
+          </div>
+          <div class="ctl">
+            <h2 class="ctl-title" id="lblColour">Colour</h2>
+            <div class="chips swatches" id="colourRow" role="group" aria-labelledby="lblColour"></div>
+          </div>
+          <div class="ctl">
+            <h2 class="ctl-title" id="lblFinish">Finish</h2>
+            <div class="chips" id="finishRow" role="group" aria-labelledby="lblFinish"></div>
+          </div>
+        </div>
+
+        <button id="fadeToggle" class="toggle" type="button" role="switch" aria-checked="true">
+          <span class="toggle-text"><strong>Fade the rest</strong><small>Dim the page so your line glows.</small></span>
+          <span class="sw" aria-hidden="true"><i></i></span>
+        </button>
+
+        <p class="privacy"><span class="ico" data-icon="lock" aria-hidden="true"></span><span>Your photo never leaves your phone.</span></p>
+      </main>
+      <div class="bar bar-style">
+        <button id="btnSaveImage" class="btn btn-primary" type="button"><span data-icon="download" aria-hidden="true"></span><span id="saveLabel">Save image</span></button>
+        <button id="btnShareStory" class="btn btn-secondary" type="button"><span data-icon="share" aria-hidden="true"></span><span id="shareStoryLabel">Share story</span></button>
+      </div>
+    </section>
+
+    <!-- 4. Making the video -->
+    <section id="screen-making" class="screen making" aria-label="Your story video">
+      <header class="top">
+        <span class="top-spacer" aria-hidden="true"></span>
+        <h1 class="top-title" id="makeTitle">Making your video&hellip;</h1>
+        <span class="top-spacer" aria-hidden="true"></span>
+      </header>
+      <main class="make-main">
+        <div class="story-wrap"><canvas id="makeCanvas" role="img" aria-label="Preview of your story video"></canvas></div>
+        <div class="progress" id="makeProgress" role="progressbar" aria-label="Making your video" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="makeFill"></i></div>
+        <p class="make-note" id="makeNote">Hang tight, this takes a few seconds.</p>
+      </main>
+      <div class="bar bar-making">
+        <button id="btnMakeCancel" class="btn btn-secondary" type="button">Cancel</button>
+        <button id="btnShareNow" class="btn btn-primary" type="button" hidden><span data-icon="share" aria-hidden="true" id="shareNowIcon"></span><span id="shareNowLabel">Share now</span></button>
+        <button id="btnMakeBack" class="btn btn-ghost" type="button" hidden>Back</button>
+      </div>
+    </section>
+
+    <!-- 5. Done -->
+    <section id="screen-done" class="screen done" aria-label="Done">
+      <main class="done-main">
+        <div class="done-card" id="doneCard">
+          <svg class="spark s1" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 1.5l2.4 8.1 8.1 2.4-8.1 2.4-2.4 8.1-2.4-8.1L1.5 12l8.1-2.4z" fill="#ffe45c" stroke="#d9b92c" stroke-width="1.2" stroke-linejoin="round"/></svg>
+          <svg class="spark s2" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 1.5l2.4 8.1 8.1 2.4-8.1 2.4-2.4 8.1-2.4-8.1L1.5 12l8.1-2.4z" fill="#ffe45c" stroke="#d9b92c" stroke-width="1.2" stroke-linejoin="round"/></svg>
+          <svg class="spark s3" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 1.5l2.4 8.1 8.1 2.4-8.1 2.4-2.4 8.1-2.4-8.1L1.5 12l8.1-2.4z" fill="#ffe45c" stroke="#d9b92c" stroke-width="1.2" stroke-linejoin="round"/></svg>
+          <img id="doneImg" alt="Your card" hidden>
+          <div class="done-badge" aria-hidden="true" data-icon="check"></div>
+        </div>
+        <h1 class="done-title" id="doneTitle" tabindex="-1">Saved.</h1>
+        <p class="done-sub" id="doneSub"></p>
+
+        <div class="tips">
+          <div class="tip">
+            <span class="tip-ico" data-icon="search" aria-hidden="true"></span>
+            <p><strong>Find it later.</strong> Photos reads the words on your card, so searching <b>underline</b> or your book's title brings it back.</p>
+          </div>
+          <div class="tip" id="tipAlbum" hidden>
+            <span class="tip-ico" data-icon="folder" aria-hidden="true"></span>
+            <p><strong>Keep them together.</strong> Make an album called <b>Lines</b> in Photos and drop these in.</p>
+            <button id="btnAlbumOk" class="link tip-ok" type="button">Got it</button>
+          </div>
+        </div>
+
+        <div class="done-links">
+          <button id="btnAnother" class="btn btn-soft" type="button"><span data-icon="pen" aria-hidden="true"></span><span>Underline another line</span></button>
+          <button id="btnNewPage" class="btn btn-ghost" type="button">New page</button>
+        </div>
+        <div data-footer></div>
+      </main>
+      <div class="bar bar-done">
+        <button id="btnDoneShare" class="btn btn-primary" type="button"><span data-icon="share" aria-hidden="true"></span><span id="doneShareLabel">Share story</span></button>
+        <button id="btnDoneSave" class="btn btn-secondary" type="button"><span data-icon="download" aria-hidden="true"></span><span>Save image</span></button>
+      </div>
+    </section>
+
+    <!-- 6. Errors: one friendly message, one button -->
+    <section id="screen-error" class="screen error" aria-label="Something went wrong">
+      <main class="err-main">
+        <div class="err-card">
+          <svg class="err-art" viewBox="0 0 96 80" aria-hidden="true" focusable="false">
+            <path d="M8 14 Q28 8 48 16 Q68 8 88 14 V66 Q68 60 48 68 Q28 60 8 66 Z" fill="#fffdf8" stroke="#1f3a5f" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M48 16 V68" stroke="#1f3a5f" stroke-width="3"/>
+            <path d="M18 30 Q28 27 40 31 M18 40 Q28 37 40 41 M56 31 Q68 27 78 30" stroke="#6c6a64" stroke-width="3" stroke-linecap="round" fill="none"/>
+            <rect x="54" y="38" width="26" height="8" rx="2" fill="#ffe45c" opacity=".8"/>
+            <path d="M70 66 V76 L74 72 L78 76 V64" fill="#f1c7d4" stroke="#1f3a5f" stroke-width="2" stroke-linejoin="round"/>
+          </svg>
+          <h1 class="err-title" id="errTitle" tabindex="-1">Hmm, that didn't work.</h1>
+          <p class="err-detail" id="errDetail"></p>
+          <button id="errBtn" class="btn btn-primary btn-xl" type="button">Start over</button>
+          <button id="errLink" class="link" type="button">Back to the start</button>
+        </div>
+      </main>
+      <div data-footer></div>
+    </section>
+
+    <!-- The engine did not load -->
+    <section id="screen-broken" class="screen error" aria-label="Underline did not load">
+      <main class="err-main">
+        <div class="err-card">
+          <svg class="err-art" viewBox="0 0 96 80" aria-hidden="true" focusable="false">
+            <path d="M8 14 Q28 8 48 16 Q68 8 88 14 V66 Q68 60 48 68 Q28 60 8 66 Z" fill="#fffdf8" stroke="#1f3a5f" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M48 16 V68" stroke="#1f3a5f" stroke-width="3"/>
+            <path d="M18 30 Q28 27 40 31 M18 40 Q28 37 40 41 M56 31 Q68 27 78 30" stroke="#6c6a64" stroke-width="3" stroke-linecap="round" fill="none"/>
+          </svg>
+          <h1 class="err-title" tabindex="-1">Underline is still waking up.</h1>
+          <p class="err-detail">Something didn't load. Check your connection and give it another go.</p>
+          <button id="brokenBtn" class="btn btn-primary btn-xl" type="button">Refresh</button>
+        </div>
+      </main>
+      <div data-footer></div>
+    </section>
+
+  </div>
+
+  <!-- A single full-size frame (address shortcut screen=frame) -->
+  <div id="frameHolder"><canvas id="frameCanvas" width="1080" height="1080"></canvas></div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="drop" aria-hidden="true">Drop your photo here</div>
+
+  <!-- Photo inputs: camera and gallery -->
+  <input id="cameraInput" class="vh" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
+  <input id="galleryInput" class="vh" type="file" accept="image/*" tabindex="-1" aria-hidden="true">
+
+  <script defer src="src/engine/util.js"></script>
+  <script defer src="src/engine/decode.js"></script>
+  <script defer src="src/engine/clean.js"></script>
+  <script defer src="src/engine/lines.js"></script>
+  <script defer src="src/engine/mark.js"></script>
+  <script defer src="src/engine/finishes.js"></script>
+  <script defer src="src/engine/card.js"></script>
+  <script defer src="src/engine/sample.js"></script>
+  <script defer src="src/engine/export.js"></script>
+  <script defer src="src/engine/share.js"></script>
+  <script defer src="src/app.js"></script>
+</body>
+</html>

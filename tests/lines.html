@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Underline: lines test page</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Engine test page (never deployed).
+    tests/lines.html?photo=real/<file>             a real photo from tests/real/
+    tests/lines.html?photo=synthetic&variant=a|b|c  a generated page: a = crooked 2.6deg + warm cast + shadow + thumb,
+                                                   b = small print, -2deg, heavy shadow, c = curved (spine-like) page
+    (no photo= means synthetic a)
+    &mark=highlighter|underline  &colour=yellow|pink|green|blue
+  Shows: the photo, the cleaned page, the ink mask with the found lines (slopes), and simulated swipes snapped
+  (left-to-right, right-to-left, diagonal, too high, too low, in a blank area, a tap) drawn at full size.
+-->
+<style>
+  body { margin: 0; padding: 16px 20px 60px; background: #f6f2ea; color: #1c2433; font: 14px/1.4 system-ui, "Segoe UI", sans-serif; }
+  h1 { font: 600 20px Georgia, serif; margin: 0 0 4px; }
+  h2 { font: 600 16px Georgia, serif; margin: 22px 0 6px; border-bottom: 1px solid #e0d8c8; padding-bottom: 2px; }
+  .meta { color: #5b5a54; font-size: 13px; margin-bottom: 8px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+  figure { margin: 0; }
+  figcaption { font-size: 12px; color: #5b5a54; margin: 2px 0 8px; }
+  canvas, img { display: block; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  .bad { color: #b00020; font-weight: 600; }
+  code { background: #ece6d8; padding: 0 3px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>Underline: the magic stroke test page</h1>
+<div class="meta" id="meta">loading ...</div>
+<div id="out"></div>
+
+<script src="../src/engine/util.js"></script>
+<script src="../src/engine/decode.js"></script>
+<script src="../src/engine/clean.js"></script>
+<script src="../src/engine/lines.js"></script>
+<script src="../src/engine/mark.js"></script>
+<script src="../src/engine/card.js"></script>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search);
+  if (q.get("hold")) { const h = document.createElement("script"); h.src = "/hold?ms=" + q.get("hold"); document.head.appendChild(h); } // test server only: keeps the page loading so a headless screenshot waits
+  const photo = q.get("photo") || "synthetic";
+  const variant = q.get("variant") || "a";
+  const MARK = q.get("mark") || "highlighter";
+  const COLOUR = q.get("colour") || "yellow";
+  const out = document.getElementById("out"), meta = document.getElementById("meta");
+  window.__done = false;
+
+  function el(tag, attrs, parent) {
+    const e = document.createElement(tag);
+    for (const k in (attrs || {})) { if (k === "text") e.textContent = attrs[k]; else if (k === "html") e.innerHTML = attrs[k]; else e.setAttribute(k, attrs[k]); }
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function section(title) { return el("h2", { text: title }, out); }
+  function fig(parent, canvas, caption) {
+    const f = el("figure", {}, parent); f.appendChild(canvas); el("figcaption", { html: caption || "" }, f); return f;
+  }
+  function newCanvas(w, h) { const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
+  function fitCanvas(src, maxW, maxH) {
+    const k = Math.min(1, maxW / src.width, maxH / src.height);
+    const c = newCanvas(src.width * k, src.height * k);
+    const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(src, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  // ------------------------------------------------------------------ synthetic pages
+  const TEXT = [
+    "I am no bird; and no net ensnares me: I am a free human being with an independent will, which I now exert to leave you. I told you I should never have been happy at Thornfield, and I could not breathe there for the feeling of being watched.",
+    "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife. However little known the feelings or views of such a man may be on his first entering a neighbourhood, this truth is so well fixed in the minds of the surrounding families, that he is considered the rightful property of some one or other of their daughters.",
+    "Whatever our souls are made of, his and mine are the same; and Linton's is as different as a moonbeam from lightning, or frost from fire. There was no possibility of mistaking the road, for the lane ran straight between the hedges, and the lamps were lit one by one as we went.",
+    "Call me Ishmael. Some years ago, never mind how long precisely, having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world. It is a way I have of driving off the spleen and regulating the circulation."
+  ];
+  function wrap(ctx, text, maxW) {
+    const words = text.split(" "), lines = []; let cur = "";
+    words.forEach(function (w) { const t = cur ? cur + " " + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; });
+    if (cur) lines.push(cur); return lines;
+  }
+  function justify(ctx, line, maxW, last) {
+    if (last) { ctx.fillText(line, 0, 0); return; }
+    const words = line.split(" "); if (words.length < 2) { ctx.fillText(line, 0, 0); return; }
+    const total = words.reduce(function (s, w) { return s + ctx.measureText(w).width; }, 0);
+    const gap = (maxW - total) / (words.length - 1); let x = 0;
+    words.forEach(function (w) { ctx.fillText(w, x, 0); x += ctx.measureText(w).width + gap; });
+  }
+
+  function makeSynthetic(v) {
+    const W = 1500, H = 2000;
+    const small = v === "b";
+    const font = small ? 21 : 34, pitch = small ? 30 : 52, margin = small ? 190 : 170;
+    const flat = newCanvas(W, H), f = flat.getContext("2d");
+    f.fillStyle = "#f3eee0"; f.fillRect(0, 0, W, H);
+    f.fillStyle = "#1d1b19"; f.textBaseline = "alphabetic";
+    f.font = font + "px Georgia, 'Palatino Linotype', 'Times New Roman', serif";
+    const colW = W - 2 * margin;
+    let y = 250;
+    f.save(); f.translate(margin, 120); f.font = "italic " + (font * 0.8) + "px Georgia, serif"; f.fillText("CHAPTER XXIII", 0, 0); f.fillText("JANE EYRE", colW - 130, 0); f.restore();
+    let p = 0;
+    while (y < H - 200) {
+      const lines = wrap(f, TEXT[p % TEXT.length] + " " + TEXT[(p + 1) % TEXT.length], colW - font * 1.4);
+      lines.forEach(function (ln, i) {
+        if (y > H - 200) return;
+        f.save(); f.translate(margin + (i === 0 ? font * 1.4 : 0), y);
+        justify(f, ln, colW - (i === 0 ? font * 1.4 : 0), i === lines.length - 1);
+        f.restore(); y += pitch;
+      });
+      y += small ? 4 : 10; p++;
+    }
+    f.fillText("252", W / 2 - 20, H - 90);
+
+    // the photo: page rotated, on a table, with a lamp cast, a shadow and a thumb
+    const ang = (v === "b" ? -2.0 : 2.6) * Math.PI / 180;
+    const ph = newCanvas(W, H), x = ph.getContext("2d");
+    x.fillStyle = "#6a5842"; x.fillRect(0, 0, W, H);
+    x.save(); x.translate(W / 2, H / 2); x.rotate(ang); x.scale(0.94, 0.94); x.translate(-W / 2, -H / 2);
+    if (v === "c") { // a curved page: columns shifted up and down like a page near the spine
+      const slice = 3;
+      for (let sx = 0; sx < W; sx += slice) {
+        const t = (sx - W * 0.15) / W, dy = 70 * Math.pow(Math.max(0, 0.55 - t), 2) * 2.2 - 25 * Math.sin(sx / W * Math.PI);
+        x.drawImage(flat, sx, 0, slice, H, sx, dy, slice, H);
+      }
+    } else x.drawImage(flat, 0, 0);
+    x.restore();
+    x.globalCompositeOperation = "multiply";
+    let g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, "rgb(255,232,170)"); g.addColorStop(1, "rgb(255,214,150)");
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    g = x.createRadialGradient(W * 0.1, H * 0.95, 100, W * 0.1, H * 0.95, W * (v === "b" ? 1.1 : 0.9));
+    g.addColorStop(0, "rgb(95,85,80)"); g.addColorStop(1, "rgb(255,255,255)");
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    g = x.createLinearGradient(W, 0, 0, 0); g.addColorStop(0, "rgb(205,195,185)"); g.addColorStop(0.5, "rgb(255,255,255)");
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.globalCompositeOperation = "source-over";
+    // thumb blob at the right edge, bottom
+    g = x.createRadialGradient(W - 40, H * 0.72, 10, W - 40, H * 0.72, 190);
+    g.addColorStop(0, "rgba(150,98,78,1)"); g.addColorStop(0.7, "rgba(165,110,88,0.95)"); g.addColorStop(1, "rgba(165,110,88,0)");
+    x.save(); x.translate(W - 40, H * 0.72); x.rotate(-0.3); x.scale(1, 1.6); x.translate(-(W - 40), -H * 0.72);
+    x.fillStyle = g; x.beginPath(); x.arc(W - 40, H * 0.72, 190, 0, 7); x.fill(); x.restore();
+    // blur + noise
+    const bl = newCanvas(W, H), b = bl.getContext("2d"); b.filter = "blur(0.7px)"; b.drawImage(ph, 0, 0);
+    const id = b.getImageData(0, 0, W, H), d = id.data; let seed = 12345;
+    function rnd() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+    for (let i = 0; i < d.length; i += 4) { const n = (rnd() + rnd() + rnd() - 1.5) * 16; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+    b.putImageData(id, 0, 0);
+    return bl;
+  }
+
+  async function getFile() {
+    if (photo === "synthetic") {
+      const c = makeSynthetic(variant);
+      // synchronous route (toBlob is asynchronous and misbehaves under headless virtual time)
+      const url = c.toDataURL("image/jpeg", 0.92), bin = atob(url.split(",")[1]), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return { file: new File([bytes], "synthetic-" + variant + ".jpg", { type: "image/jpeg" }), src: url, label: "synthetic page, variant " + variant };
+    }
+    const res = await fetch(photo);
+    if (!res.ok) throw new Error("could not load " + photo + " (" + res.status + ")");
+    const blob = await res.blob();
+    const name = photo.split("/").pop();
+    const file = new File([blob], name, { type: blob.type || "image/jpeg" });
+    return { file: file, src: URL.createObjectURL(blob), label: photo };
+  }
+
+  // ------------------------------------------------------------------ the checks
+  function hue(i) { return "hsl(" + ((i * 47) % 360) + ",85%,45%)"; }
+
+  function drawLinesOverlay(page, scale) {
+    const c = newCanvas(page.width * scale, page.height * scale), x = c.getContext("2d");
+    x.drawImage(page.image.data ? (function () { const t = newCanvas(page.width, page.height); t.getContext("2d").putImageData(page.image, 0, 0); return t; })() : page.image, 0, 0, c.width, c.height);
+    x.scale(scale, scale);
+    page.lines.forEach(function (l, i) {
+      const cosT = 1 / Math.sqrt(1 + l.slope * l.slope), hv = l.height / cosT;
+      x.fillStyle = hue(i).replace("hsl", "hsla").replace(")", ",0.28)");
+      x.strokeStyle = hue(i); x.lineWidth = 1.2 / scale;
+      x.beginPath();
+      x.moveTo(l.x0, l.a + l.slope * l.x0 - hv / 2); x.lineTo(l.x1, l.a + l.slope * l.x1 - hv / 2);
+      x.lineTo(l.x1, l.a + l.slope * l.x1 + hv / 2); x.lineTo(l.x0, l.a + l.slope * l.x0 + hv / 2); x.closePath();
+      x.fill(); x.stroke();
+      x.fillStyle = "#000"; x.font = (11 / scale) + "px sans-serif";
+      x.fillText(i + " " + (Math.atan(l.slope) * 180 / Math.PI).toFixed(1) + "°", l.x0 + 2 / scale, l.a + l.slope * l.x0 - hv / 2 - 2 / scale);
+    });
+    return c;
+  }
+
+  function maskCanvas(dbg, page) {
+    const c = newCanvas(dbg.ww, dbg.wh), x = c.getContext("2d");
+    const id = x.createImageData(dbg.ww, dbg.wh);
+    for (let i = 0; i < dbg.mask.length; i++) { const v = dbg.mask[i] ? 20 : 250; id.data[i * 4] = v; id.data[i * 4 + 1] = v; id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = 255; }
+    x.putImageData(id, 0, 0);
+    // strips and lines
+    x.strokeStyle = "rgba(0,120,255,.35)";
+    for (let s = 1; s < dbg.strips; s++) { const px = s * dbg.ww / dbg.strips; x.beginPath(); x.moveTo(px, 0); x.lineTo(px, dbg.wh); x.stroke(); }
+    x.save(); x.scale(1 / dbg.k, 1 / dbg.k);
+    page.lines.forEach(function (l, i) {
+      x.strokeStyle = hue(i); x.lineWidth = 1.5 * dbg.k;
+      x.beginPath(); x.moveTo(l.x0, l.a + l.slope * l.x0); x.lineTo(l.x1, l.a + l.slope * l.x1); x.stroke();
+      x.fillStyle = hue(i);
+      (l.words || []).forEach(function (w) { x.fillRect(w[0], l.a + l.slope * w[0] - 2 * dbg.k, 1.5 * dbg.k, 4 * dbg.k); });
+    });
+    x.restore();
+    return c;
+  }
+
+  // simulated hand: a swipe from (xa, ya) to (xb, yb) with a little wobble
+  function swipe(xa, ya, xb, yb, wob, seed) {
+    const pts = []; const n = 28; let s = seed || 1;
+    function r() { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; }
+    for (let i = 0; i <= n; i++) { const t = i / n; pts.push({ x: xa + (xb - xa) * t + r() * wob * 0.3, y: ya + (yb - ya) * t + r() * wob + Math.sin(t * 5) * wob * 0.3 }); }
+    return pts;
+  }
+
+  function pageCanvas(page) {
+    if (!page.image.data) return page.image;
+    const t = newCanvas(page.width, page.height); t.getContext("2d").putImageData(page.image, 0, 0); return t;
+  }
+
+  // a crop of the page around some strokes at zoom z with the strokes (and raw swipes) drawn on it
+  function renderCrop(page, strokes, raws, z, opts) {
+    opts = opts || {};
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    strokes.forEach(function (s) { const g = UL.mark.geometry(s); const m = 1.8 * s.height; x0 = Math.min(x0, g.bbox.x0 - m); y0 = Math.min(y0, g.bbox.y0 - m); x1 = Math.max(x1, g.bbox.x1 + m); y1 = Math.max(y1, g.bbox.y1 + m); });
+    x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(page.width, Math.ceil(x1)); y1 = Math.min(page.height, Math.ceil(y1));
+    const w = x1 - x0, h = y1 - y0;
+    const zz = Math.min(z, (opts.maxW || 1240) / w);
+    const c = newCanvas(w * zz, h * zz), x = c.getContext("2d");
+    x.imageSmoothingQuality = "high";
+    x.drawImage(pageCanvas(page), x0, y0, w, h, 0, 0, c.width, c.height);
+    x.save(); x.scale(zz, zz); x.translate(-x0, -y0);
+    if (opts.fade) UL.mark.fadeRest(x, strokes, { x: x0, y: y0, w: w, h: h }, { amount: 0.55, paper: "#f7f1e6" });
+    UL.mark.drawAll(x, strokes, { mark: MARK, colour: COLOUR });
+    if (!opts.noRaw) {
+      raws.forEach(function (r) {
+        x.strokeStyle = "rgba(220,0,0,.9)"; x.lineWidth = 1.2 / zz; x.setLineDash([4 / zz, 3 / zz]);
+        x.beginPath(); r.forEach(function (p, i) { if (i === 0) x.moveTo(p.x, p.y); else x.lineTo(p.x, p.y); }); x.stroke();
+        x.setLineDash([]);
+      });
+    }
+    x.restore();
+    return c;
+  }
+
+  function describe(s) {
+    return (s.snapped ? "<b>snapped</b>" : "<span class='bad'>not snapped (raw)</span>") + " x " + Math.round(s.x0) + "&ndash;" + Math.round(s.x1) +
+      ", y " + Math.round(s.y) + ", h " + s.height.toFixed(1) + ", angle " + (Math.atan(s.slope) * 180 / Math.PI).toFixed(2) + "&deg;";
+  }
+
+  async function main() {
+    const t0 = performance.now();
+    const got = await getFile();
+    meta.textContent = "source: " + got.label;
+    const t1 = performance.now();
+    meta.textContent = "source ready (" + got.label + "), decoding ...";
+    const img = await UL.decode.fileToImageData(got.file, { maxSide: 2000 });
+    meta.textContent = "decoded, preparing ...";
+    const tDecode = performance.now() - t1;
+    const page = await UL.page.prepare(img);
+    const dbg = page._debug;
+    meta.innerHTML = "source: <b>" + got.label + "</b> &middot; decoded " + img.width + "&times;" + img.height + " in " + tDecode.toFixed(0) + " ms &middot; clean <b>" + dbg.cleanMs.toFixed(0) +
+      " ms</b> &middot; line finding <b>" + dbg.linesMs.toFixed(0) + " ms</b> (at " + dbg.ww + "&times;" + dbg.wh + ") &middot; global tilt " + dbg.theta.toFixed(1) + "&deg; &middot; line pitch ~" + dbg.P +
+      " px (working scale) &middot; <b>" + page.lines.length + " lines</b>" + (page.warning ? " &middot; <span class='bad'>warning: " + page.warning + "</span>" : "");
+
+    if (q.get("stats")) { // one row per raw band: where, how busy, the rhythm of words and spaces (in band heights), kept or thrown out
+      const pre = el("pre", { style: "font:11px monospace;background:#fff;padding:6px;margin:6px 0" }, out);
+      pre.textContent = "raw bands " + dbg.raw.length + " (kept " + dbg.raw.filter(function (r) { return r.kept; }).length + "), vet: " + JSON.stringify(dbg.vet) + "\n" +
+        "kept y      slope   x0..x1      h  busy fill  nw  wordLen wcv  gapLen gcv\n" +
+        dbg.raw.map(function (r) { return (r.kept ? "  K  " : "  .  ") + [r.a, r.slope, r.x0 + ".." + r.x1, r.h, r.busy, r.fill, r.r.nw, r.r.wlen.toFixed(1), r.r.wcv.toFixed(2), r.r.glen.toFixed(2), r.r.gcv.toFixed(2)].join("  "); }).join("\n");
+    }
+    section("1. The photo, and the cleaned page (white balance, shadow lift, curve, vignette)");
+    let row = el("div", { "class": "row" }, out);
+    const oc = newCanvas(img.width, img.height); oc.getContext("2d").putImageData(img, 0, 0);
+    fig(row, fitCanvas(oc, 600, 900), "original (as decoded, max side 2000)");
+    fig(row, fitCanvas(pageCanvas(page), 600, 900), "cleaned: this is what the editor shows");
+
+    section("2. Ink mask and found lines");
+    row = el("div", { "class": "row" }, out);
+    fig(row, fitCanvas(maskCanvas(dbg, page), 600, 900), "ink mask at working size (" + dbg.ww + "&times;" + dbg.wh + "), coloured line = fitted centre, ticks = word starts, blue verticals = strips");
+    fig(row, fitCanvas(drawLinesOverlay(page, 1), 600, 900), "bands found, with slope in degrees, on the cleaned page");
+
+    const topNodes = Array.prototype.slice.call(out.children);
+    if (q.get("only") === "swipes") topNodes.forEach(function (n) { n.style.display = "none"; });
+    // ---- swipes ----
+    section("3. Simulated swipes, snapped, with the " + MARK + " (" + COLOUR + ") drawn at full size");
+    if (!page.lines.length) {
+      el("div", { "class": "bad", text: "No lines found: swipes will use the raw fallback." }, out);
+    }
+    // choose a line near the middle of the page that is long enough
+    const lines = page.lines;
+    const pitchSorted = lines.slice().sort(function (a, b) { return Math.abs((a.top + a.bottom) / 2 - page.height * 0.5) - Math.abs((b.top + b.bottom) / 2 - page.height * 0.5); });
+    const longLines = pitchSorted.filter(function (l) { return l.x1 - l.x0 > page.width * 0.2; });
+    const L = (longLines[0] || pitchSorted[0]);
+    if (L) {
+      const idx = lines.indexOf(L), h = L.height;
+      const span = L.x1 - L.x0, ya = function (xx) { return L.a + L.slope * xx; };
+      const xa = L.x0 + 0.15 * span, xb = L.x0 + 0.7 * span;
+      const scen = [
+        { name: "left to right, on the line", pts: swipe(xa, ya(xa), xb, ya(xb), 0.12 * h, 3) },
+        { name: "right to left, on the line", pts: swipe(xb, ya(xb), xa, ya(xa), 0.12 * h, 5) },
+        { name: "slightly diagonal (swipe drifts 0.7 line-heights down)", pts: swipe(xa, ya(xa) - 0.35 * h, xb, ya(xb) + 0.35 * h, 0.1 * h, 7) },
+        { name: "too high (0.6 line-heights above)", pts: swipe(xa, ya(xa) - 0.6 * h, xb, ya(xb) - 0.6 * h, 0.1 * h, 9) },
+        { name: "too low (0.6 line-heights below)", pts: swipe(xa, ya(xa) + 0.6 * h, xb, ya(xb) + 0.6 * h, 0.1 * h, 11) },
+        { name: "a tap on a word", pts: [{ x: (L.words[Math.min(2, L.words.length - 1)][0] + L.words[Math.min(2, L.words.length - 1)][1]) / 2, y: ya((L.words[Math.min(2, L.words.length - 1)][0] + L.words[Math.min(2, L.words.length - 1)][1]) / 2) + 0.2 * h }] },
+        { name: "in the blank (no line within 1.2 heights): raw fallback", pts: swipe(page.width * 0.25, 4, page.width * 0.7, 10, 2, 13) }
+      ];
+      // full-size first scenario
+      const first = UL.page.snap(page, scen[0].pts);
+      el("div", { "class": "meta", html: "Line #" + idx + " (height " + h.toFixed(1) + " px, " + (Math.atan(L.slope) * 180 / Math.PI).toFixed(2) + "&deg;). Scenario 1 at 1:1 (red dashes = the swipe): " + describe(first) }, out);
+      row = el("div", { "class": "row" }, out);
+      fig(row, renderCrop(page, [first], [scen[0].pts], parseFloat(q.get("zoom") || "1"), { maxW: 1240 }), "highlighter at 1:1, text crisp underneath?");
+      row = el("div", { "class": "row" }, out);
+      fig(row, renderCrop(page, [first], [], parseFloat(q.get("zoom") || "1"), { maxW: 1240, fade: true, noRaw: true }), "same with “fade the rest” (55%, soft feather)");
+      row = el("div", { "class": "row" }, out);
+      const clean = renderCrop(page, [], [], 1, { maxW: 1240 }); // fallback so the layout holds when no strokes
+      const grid = el("div", { "class": "grid" }, out);
+      scen.slice(1).forEach(function (sc) {
+        const s = UL.page.snap(page, sc.pts);
+        fig(grid, renderCrop(page, [s], [sc.pts], 1, { maxW: 620 }), "<b>" + sc.name + "</b><br>" + describe(s));
+      });
+      // a passage: three neighbouring lines, swiped one after another
+      const cand = [idx, idx + 1, idx + 2].filter(function (i) { return lines[i]; });
+      const strokes = cand.map(function (i, n) {
+        const l = lines[i], sp = l.x1 - l.x0, a = l.x0 + 0.1 * sp, b = l.x0 + (0.65 + 0.1 * n) * sp;
+        return UL.page.snap(page, swipe(a, l.a + l.slope * a + 0.15 * l.height, b, l.a + l.slope * b - 0.1 * l.height, 0.1 * l.height, 20 + n));
+      });
+      el("div", { "class": "meta", html: "A passage: three swipes on neighbouring lines, with fade-the-rest" }, out);
+      row = el("div", { "class": "row" }, out);
+      fig(row, renderCrop(page, strokes, [], 1, { maxW: 1240, fade: true, noRaw: true }), strokes.map(describe).join("<br>"));
+    }
+
+    section("4. A pen underline (M2 mark, early look) and every colour");
+    if (L) {
+      const sp = L.x1 - L.x0, a = L.x0 + 0.15 * sp, b = L.x0 + 0.7 * sp;
+      const s = UL.page.snap(page, swipe(a, L.a + L.slope * a, b, L.a + L.slope * b, 1, 3));
+      row = el("div", { "class": "grid" }, out);
+      ["highlighter:yellow", "highlighter:pink", "highlighter:green", "highlighter:blue", "underline:blue", "underline:pink"].forEach(function (m) {
+        const parts = m.split(":");
+        const c = renderCrop(page, [s], [], 1, { maxW: 620, noRaw: true });
+        // redraw with this mark: simple approach, render the crop again using the mark options
+        const x0 = c; // (kept for clarity: the crop is re-rendered below)
+        const g = UL.mark.geometry(s), mm = 1.8 * s.height;
+        const cx0 = Math.max(0, Math.floor(g.bbox.x0 - mm)), cy0 = Math.max(0, Math.floor(g.bbox.y0 - mm));
+        const cw = Math.min(page.width, Math.ceil(g.bbox.x1 + mm)) - cx0, chh = Math.min(page.height, Math.ceil(g.bbox.y1 + mm)) - cy0;
+        const zz = Math.min(1, 620 / cw), cc = newCanvas(cw * zz, chh * zz), xx = cc.getContext("2d");
+        xx.imageSmoothingQuality = "high";
+        xx.drawImage(pageCanvas(page), cx0, cy0, cw, chh, 0, 0, cc.width, cc.height);
+        xx.scale(zz, zz); xx.translate(-cx0, -cy0);
+        UL.mark.draw(xx, s, { mark: parts[0], colour: parts[1] });
+        fig(row, cc, parts[0] + " " + parts[1]);
+      });
+    }
+    if (q.get("only") === "top") Array.prototype.slice.call(out.children).forEach(function (n) { if (topNodes.indexOf(n) < 0) n.style.display = "none"; });
+    meta.innerHTML += " &middot; total page time " + (performance.now() - t0).toFixed(0) + " ms";
+    window.__done = true;
+    document.title = "done";
+  }
+  main().catch(function (e) { meta.innerHTML = "<span class='bad'>ERROR: " + (e && (e.stack || e.message || e)) + "</span>"; window.__done = true; });
+})();
+</script>
+</body>
+</html>

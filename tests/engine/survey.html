@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Underline: survey of every test photo</title>
+<!--
+  Engine test page (never deployed). Runs decode + UL.page.prepare on every photo in tests/real/ and tests/out/phone-*.jpg
+  and prints a table: lines found, the warning, timings, the measured paper colour and the colour of the cleaned page's paper.
+    tests/engine/survey.html            all photos
+    tests/engine/survey.html?swatch=1   also a small cleaned thumbnail of each
+-->
+<style>
+  body { margin: 0; padding: 10px 14px; font: 12px/1.35 system-ui, sans-serif; background: #f6f2ea; color: #1c2433; }
+  table { border-collapse: collapse; } td, th { padding: 2px 8px; border-bottom: 1px solid #ddd5c4; text-align: left; white-space: nowrap; }
+  .bad { color: #b00020; font-weight: 600; } .sw { display: inline-block; width: 46px; height: 18px; border: 1px solid #0003; vertical-align: middle; }
+  canvas { height: 120px; display: block; }
+</style>
+</head>
+<body>
+<div id="meta">running ...</div>
+<table id="t"><tr><th>photo</th><th>size</th><th>lines</th><th>warning</th><th>clean ms</th><th>lines ms</th><th>P</th><th>photo paper</th><th>cleaned paper</th><th>thumb</th></tr></table>
+<script src="../../src/engine/util.js"></script>
+<script src="../../src/engine/decode.js"></script>
+<script src="../../src/engine/clean.js"></script>
+<script src="../../src/engine/lines.js"></script>
+<script>
+(async function () {
+  const q = new URLSearchParams(location.search);
+  { const h = document.createElement("script"); h.src = "/hold?ms=" + (q.get("hold") || 7000); document.head.appendChild(h); } // keeps the page loading while it works (only the test server answers slowly), so a headless screenshot waits
+  const files = (q.get("files") ? q.get("files").split(",") : [
+    "../real/cc0-book.jpg", "../real/small-print-dictionary.jpg", "../real/book-in-hand.jpg", "../real/open-book-1.jpg", "../real/open-book-2.jpg",
+    "../real/page-scan-bloom.jpg", "../real/page-scan-godfrey.jpg", "../real/page-scan-hoosier.jpg",
+    "../out/phone-a-warm.jpg", "../out/phone-b-lamp-small.jpg", "../out/phone-c-cool-shadow.jpg"
+  ]);
+  const t = document.getElementById("t"), meta = document.getElementById("meta");
+  function hex(c) { return "#" + [c.r, c.g, c.b].map(function (v) { return ("0" + Math.round(Math.max(0, Math.min(255, v))).toString(16)).slice(-2); }).join(""); }
+  function sw(c) { return "<span class='sw' style='background:" + hex(c) + "'></span> " + hex(c); }
+  // paper colour of a picture: the mean colour of the brightest 30% of 16 px cells
+  function paperOf(img) {
+    const W = img.width, H = img.height, d = img.data, cells = [];
+    for (let y = 0; y + 16 <= H; y += 16) for (let x = 0; x + 16 <= W; x += 16) {
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let yy = y; yy < y + 16; yy += 3) for (let xx = x; xx < x + 16; xx += 3) { const i = (yy * W + xx) * 4; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+      cells.push({ r: r / n, g: g / n, b: b / n, l: (r * 0.3 + g * 0.59 + b * 0.11) / n });
+    }
+    cells.sort(function (a, b) { return b.l - a.l; });
+    const k = Math.max(1, Math.round(cells.length * 0.3)); let r = 0, g = 0, b = 0;
+    for (let i = 0; i < k; i++) { r += cells[i].r; g += cells[i].g; b += cells[i].b; }
+    return { r: r / k, g: g / k, b: b / k };
+  }
+  for (const f of files) {
+    const row = t.insertRow();
+    try {
+      const res = await fetch(f); if (!res.ok) throw new Error(res.status);
+      const blob = await res.blob();
+      const img = await UL.decode.fileToImageData(new File([blob], f.split("/").pop(), { type: blob.type || "image/jpeg" }), { maxSide: 2000 });
+      const before = paperOf(img);
+      const p = await UL.page.prepare(img);
+      const after = paperOf(p._data);
+      const d = p._debug;
+      row.innerHTML = "<td>" + f.split("/").pop() + "</td><td>" + img.width + "x" + img.height + "</td><td><b>" + p.lines.length + "</b> (raw " + d.rawCount + ") " + JSON.stringify(d.vet) + "</td><td>" + (p.warning ? "<span class='bad'>" + p.warning + "</span>" : "-") +
+        "</td><td>" + d.cleanMs.toFixed(0) + "</td><td>" + d.linesMs.toFixed(0) + "</td><td>" + d.P + "</td><td>" + sw(before) + "</td><td>" + sw(after) + "</td><td></td>";
+      if (q.get("swatch")) { const tw = 150, th = Math.round(tw * img.height / img.width), c = document.createElement("canvas"); c.width = 2 * tw + 6; c.height = th; const x = c.getContext("2d"); const oc = document.createElement("canvas"); oc.width = img.width; oc.height = img.height; oc.getContext("2d").putImageData(img, 0, 0); x.drawImage(oc, 0, 0, tw, th); x.drawImage(p.image, tw + 6, 0, tw, th); row.cells[9].appendChild(c); }
+    } catch (e) { row.innerHTML = "<td>" + f + "</td><td colspan=9 class='bad'>" + (e && (e.message || e.code || e)) + "</td>"; }
+  }
+  meta.textContent = "done";
+  window.__done = true;
+})();
+</script>
+</body>
+</html>

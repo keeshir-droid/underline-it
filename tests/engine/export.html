@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Underline: export test page</title>
+<!--
+  Engine test page (never deployed). Makes the still image and the story video from the built-in sample and reports.
+    tests/engine/export.html                 image + video
+    tests/engine/export.html?video=0         image only
+-->
+<style>
+  body { margin: 0; padding: 14px 18px; background: #eee; font: 14px/1.5 system-ui, sans-serif; }
+  img, video { max-height: 520px; display: block; margin: 6px 0; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  pre { background: #fff; padding: 8px; }
+</style>
+</head>
+<body>
+<pre id="log">starting ...</pre>
+<div id="media"></div>
+<script src="../../src/engine/util.js"></script>
+<script src="../../src/engine/decode.js"></script>
+<script src="../../src/engine/clean.js"></script>
+<script src="../../src/engine/lines.js"></script>
+<script src="../../src/engine/mark.js"></script>
+<script src="../../src/engine/finishes.js"></script>
+<script src="../../src/engine/card.js"></script>
+<script src="../../src/engine/sample.js"></script>
+<script src="../../src/engine/export.js"></script>
+<script src="../../src/engine/share.js"></script>
+<script>
+(async function () {
+  const q = new URLSearchParams(location.search);
+  const log = document.getElementById("log"), media = document.getElementById("media");
+  function say(s) { log.textContent += "\n" + s; }
+  log.textContent = "";
+  try {
+    const s = await UL.sample.load();
+    const card = await UL.card.create(s.page, s.strokes, s.settings);
+    say("sample ready; finish " + card.settings.finish + "; strokes " + card.strokes.length);
+    say("support: " + JSON.stringify(await UL.export.support()) + "; platform " + UL.share.platform());
+    let t0 = performance.now();
+    const img = await UL.export.makeImage(card);
+    say("image: " + img.name + ", " + img.type + ", " + Math.round(img.size / 1024) + " KB, " + (performance.now() - t0).toFixed(0) + " ms");
+    const im = new Image(); im.src = URL.createObjectURL(img); media.appendChild(im);
+    if (q.get("video") !== "0") {
+      t0 = performance.now(); let last = 0;
+      const vid = await UL.export.makeVideo(card, { onProgress: function (p) { last = p; } });
+      say("video: " + vid.name + ", " + vid.type + ", " + Math.round(vid.size / 1024) + " KB, " + ((performance.now() - t0) / 1000).toFixed(1) + " s, last progress " + last);
+      const v = document.createElement("video"); v.src = URL.createObjectURL(vid); v.muted = true; v.controls = true; media.appendChild(v);
+      await new Promise(function (r) { v.onloadedmetadata = r; setTimeout(r, 3000); });
+      say("video metadata: " + v.videoWidth + "x" + v.videoHeight + ", " + v.duration.toFixed(2) + " s");
+      v.currentTime = 4.9; await new Promise(function (r) { v.onseeked = r; setTimeout(r, 3000); });
+    }
+    say("done");
+  } catch (e) { say("ERROR " + (e && (e.code || "") ) + " " + (e && (e.stack || e.message || e))); }
+})();
+</script>
+</body>
+</html>
