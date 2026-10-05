@@ -77,6 +77,27 @@ async function checkOverflow(b, label) {
     o ? "scrollWidth " + o.scrollWidth + (o.offenders.length ? ", offenders: " + o.offenders.join("; ") : "") : "no answer");
 }
 
+
+// the book fonts really loaded (not a fallback) and the page uses them
+const FONT_PROBE = `(async function () {
+  var specs = ['500 18px "EB Garamond"', 'italic 500 18px "EB Garamond"', '600 18px "EB Garamond"', '600 30px "Cormorant Garamond"', 'italic 600 30px "Cormorant Garamond"', '600 20px "Caveat"'];
+  await Promise.all(specs.map(function (x) { return document.fonts.load(x, "Aa").catch(function () {}); }));
+  var out = { loaded: {}, h1: getComputedStyle(document.querySelector(".screen.is-active h1")).fontFamily, body: getComputedStyle(document.body).fontFamily, btn: getComputedStyle(document.querySelector(".screen.is-active .btn")).fontFamily };
+  specs.forEach(function (x) { out.loaded[x] = document.fonts.check(x); });
+  return out;
+})()`;
+
+// every tap target is at least 44 x 44 css px
+const TARGET_PROBE = `(function () {
+  var bad = [], list = document.querySelectorAll(".screen.is-active button, .screen.is-active a[href], .screen.is-active summary, .screen.is-active input:not(.vh), .screen.is-active .chip, .screen.is-active .swatch");
+  for (var i = 0; i < list.length; i++) {
+    var el = list[i]; if (el.closest(".vh")) continue;
+    var r = el.getBoundingClientRect(); if (!r.width || !r.height) continue;
+    if (r.width < 43.5 || r.height < 43.5) bad.push((el.id || el.className || el.tagName) + " " + Math.round(r.width) + "x" + Math.round(r.height));
+  }
+  return bad;
+})()`;
+
 function problems(b) { return b.errors.concat(b.exceptions).join(" | "); }
 
 // a swipe with real touch events across the canvas, between two fractions of its box
@@ -145,6 +166,11 @@ async function main() {
     const snapVisible = await b.eval("(function(){var r=document.getElementById('btnSnap').getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.width>0;})()");
     item(snapVisible === true, "landing: Snap a page is visible without scrolling");
     await b.shot("pc-landing.png");
+    const fonts = await b.eval(FONT_PROBE);
+    item(!!fonts && Object.keys(fonts.loaded).every(function (k) { return fonts.loaded[k]; }), "landing: EB Garamond, Cormorant Garamond and Caveat are really loaded", JSON.stringify(fonts && fonts.loaded));
+    item(!!fonts && /^"?Cormorant Garamond/.test(fonts.h1) && /^"?EB Garamond/.test(fonts.body) && /^"?EB Garamond/.test(fonts.btn), "landing: headings use Cormorant Garamond, text and buttons use EB Garamond", fonts && fonts.h1.split(",")[0] + " / " + fonts.body.split(",")[0]);
+    const tgt0 = await b.eval(TARGET_PROBE);
+    item(Array.isArray(tgt0) && tgt0.length === 0, "landing: every tap target is at least 44px", JSON.stringify(tgt0));
     await checkOverflow(b, "landing screen");
     item(b.errors.length === 0, "landing: no console errors", b.errors.join(" | "));
     item(b.exceptions.length === 0, "landing: no uncaught exceptions", b.exceptions.join(" | "));
@@ -195,6 +221,12 @@ async function main() {
     item(!!sq && sq.w >= 40 && Math.abs(sq.w - sq.h) < 1 && Math.round(sq.w) === sq.w && sq.cw === sq.ch, "style: the preview is a sharp whole-pixel square", JSON.stringify(sq));
     await b.shot("pc-style.png");
     await checkOverflow(b, "style screen");
+    const tgt1 = await b.eval(TARGET_PROBE);
+    item(Array.isArray(tgt1) && tgt1.length === 0, "style: every tap target is at least 44px", JSON.stringify(tgt1));
+    const chipTops = await b.eval("Array.prototype.map.call(document.querySelectorAll('#finishRow .chip'), function (c) { return Math.round(c.getBoundingClientRect().top); })");
+    item(Array.isArray(chipTops) && chipTops.length === 4 && chipTops.every(function (t) { return t === chipTops[0]; }), "style: Clean, Polaroid, Film, Torn page fit on one row", JSON.stringify(chipTops));
+    const lbl = await b.eval("UL.finishes.labelInfo({ title: 'Jane Eyre', page: '252', note: 'x' }, new Date(2026, 9, 5)).line");
+    item(typeof lbl === "string" && !/underline/i.test(lbl) && /^Jane Eyre . p\. 252 . 5 Oct 2026$/.test(lbl), "card label line is title, page, date and never says underline", lbl);
     const support = await b.eval("UL.export.support()");
     item(!!(support && typeof support.video === "boolean" && "method" in support), "UL.export.support() answers", JSON.stringify(support));
     item(!!(support && support.video), "UL.export.support(): this browser can make video", JSON.stringify(support));
@@ -292,6 +324,10 @@ async function main() {
     await b.sleep(500);
     await b.shot("pc-done.png");
     await checkOverflow(b, "done screen");
+    const tipText = await b.eval("Array.prototype.map.call(document.querySelectorAll('.tip p'), function (p) { return p.textContent; }).join(' | ')");
+    item(typeof tipText === "string" && tipText.length > 20 && !/search(ing)?\s+(for\s+)?['"‘“]?underline/i.test(tipText), "done: the tip does not tell people to search for 'underline'", tipText);
+    const tgt2 = await b.eval(TARGET_PROBE);
+    item(Array.isArray(tgt2) && tgt2.length === 0, "done: every tap target is at least 44px", JSON.stringify(tgt2));
     // the style screen with the label fields open
     await b.open(BASE + "?sample=1&screen=style&labels=1");
     await b.waitFor("window.__underline && window.__underline.screen === 'style' && !!window.__underline.card", 30);

@@ -109,6 +109,28 @@ const css = fs.readFileSync(path.join(ROOT, "src", "styles.css"), "utf8");
 report(/@font-face\s*{[^}]*font-family:\s*["']?Caveat["']?[^}]*caveat-600\.woff2/s.test(css), "styles.css loads fonts/caveat-600.woff2 as \"Caveat\"");
 report(fs.existsSync(path.join(ROOT, "fonts", "caveat-600.woff2")) && fs.existsSync(path.join(ROOT, "fonts", "OFL.txt")), "fonts/ has caveat-600.woff2 and OFL.txt");
 
+// the book fonts: EB Garamond (text) and Cormorant Garamond (display) are declared, and every font file the CSS names exists
+const faces = css.match(/@font-face\s*{[^}]*}/g) || [];
+const faceOf = function (family) { return faces.filter(function (f) { const m = /font-family:\s*["']?([^"';]+)["']?\s*;/.exec(f); return !!m && m[1].trim() === family; }); };
+report(faceOf("EB Garamond").length >= 2 && faceOf("EB Garamond").some(function (f) { return /font-style:\s*italic/.test(f); }) && faceOf("EB Garamond").some(function (f) { return /font-style:\s*normal/.test(f); }), "styles.css declares @font-face for \"EB Garamond\" (normal and italic)", faceOf("EB Garamond").length + " faces");
+report(faceOf("Cormorant Garamond").length >= 1, "styles.css declares @font-face for \"Cormorant Garamond\"", faceOf("Cormorant Garamond").length + " faces");
+const fontFiles = [];
+css.replace(/url\(["']?([^"')]+\.woff2)["']?\)/g, function (_, u) { fontFiles.push(u); });
+const missingFonts = fontFiles.filter(function (u) { return !fs.existsSync(path.join(ROOT, "src", u)); });
+report(fontFiles.length > 0 && missingFonts.length === 0, "every font file named in styles.css exists in fonts/ (" + fontFiles.length + " files)", missingFonts.join(", "));
+report(fs.existsSync(path.join(ROOT, "fonts", "OFL-EBGaramond.txt")) && fs.existsSync(path.join(ROOT, "fonts", "OFL-Cormorant.txt")), "fonts/ has the OFL licence for EB Garamond and Cormorant");
+const fin = fs.readFileSync(path.join(ROOT, "src", "engine", "finishes.js"), "utf8");
+report(!/sans-serif/.test(fin.replace(/^\s*\/\/.*$/gm, "")), "finishes.js uses no sans stack for card text (the cards are all serif)");
+report(/"EB Garamond"/.test(fin), "finishes.js card text uses EB Garamond");
+const cardSrc = fs.readFileSync(path.join(ROOT, "src", "engine", "card.js"), "utf8");
+report(/EB Garamond/.test(cardSrc) && /Caveat/.test(cardSrc), "card.create waits for EB Garamond and Caveat");
+// no label says "underline" except the made-with mark (the site name)
+try {
+  const info = UL.finishes.labelInfo({ title: "Jane Eyre", page: "252", note: "yes" }, new Date(2026, 9, 5));
+  report(!/underline/i.test(info.line + info.main + info.note), "labelInfo line has no 'underline' word", info.line);
+  report(info.line === "Jane Eyre · p. 252 · 5 Oct 2026", "labelInfo line is title · p. N · date", info.line);
+} catch (e) { report(false, "labelInfo runs in Node", e.message); }
+
 // script order in index.html
 const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 const order = [];

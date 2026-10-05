@@ -19,8 +19,7 @@
   const UL = (globalThis.UL = globalThis.UL || {});
   const U = function () { return UL.util; };
 
-  const SERIF = '"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif';
-  const SANS = 'system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
+  const SERIF = '"EB Garamond","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif';
   const HAND = '"Caveat","Segoe Print","Bradley Hand",cursive';
   const SITE = "underline-it.vercel.app";
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -44,7 +43,7 @@
     const main = title ? (page ? title + " · p. " + page : title) : (page ? "p. " + page : "");
     return {
       main: main, note: note, date: d, dateStr: dateStr,
-      line: [main, dateStr, "underline"].filter(Boolean).join(" · ")
+      line: [main, dateStr].filter(Boolean).join(" · ")
     };
   }
 
@@ -116,9 +115,10 @@
 
   function madeWith(ctx, x, y, color, size) {
     ctx.save();
-    ctx.globalAlpha = 0.7; ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 0.78; ctx.globalCompositeOperation = "source-over";
     ctx.fillStyle = color || "#1c2433";
-    ctx.font = (size || 22) + "px " + SANS;
+    // EB Garamond has a small x-height: the mark is set ~10% larger than the sans it replaced (22 -> 24, 26 -> 29)
+    ctx.font = "500 " + Math.round((size || 22) * 1.1) + "px " + SERIF;
     ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
     ctx.fillText("made with " + SITE, x, y);
     ctx.restore();
@@ -158,7 +158,8 @@
     ctx.textBaseline = "middle"; ctx.textAlign = o.align || "center"; ctx.globalAlpha = o.alpha === undefined ? 1 : o.alpha;
     const hasNote = !!info.note;
     const lineY = hasNote ? cy + 22 : cy;
-    const sz = fitText(ctx, info.line, maxW, o.size || 28, 16, function (s) { return (o.italic ? "italic " : "") + s + "px " + SERIF; });
+    // EB Garamond has a small x-height, so the label sizes are ~10% above what the Palatino stack needed
+    const sz = fitText(ctx, info.line, maxW, o.size || 31, 17, function (s) { return "italic 500 " + s + "px " + SERIF; });
     ctx.fillStyle = o.color || "#1c2433";
     ctx.fillText(info.line, cx, lineY);
     if (hasNote) {
@@ -260,7 +261,7 @@
       },
       // The caption, in handwriting, on the strip (drawn by the card in the frame's own tilted space, after the picture, so
       // that it can fade in on its own). With no title, page or note the date is the caption and the small line
-      // says only "underline" (the date is never printed twice).
+      // is empty (the date is never printed twice).
       pieceLabel: function (ctx, format, info) {
         const g = geo(format), f = g.frame;
         ctx.save();
@@ -271,8 +272,8 @@
         fitText(ctx, cap, f.w - 2 * g.side - 10, info.capAlphaSize || 58, 26, function (s) { return "600 " + s + "px " + HAND; });
         ctx.fillStyle = "#26365a"; ctx.globalAlpha = info.labelAlpha === undefined ? 1 : info.labelAlpha;
         ctx.fillText(cap, f.x + f.w / 2, mid - 12);
-        const small = [info.note ? info.main : "", dateIsCaption ? "" : info.dateStr, "underline"].filter(Boolean).join(" · ");
-        fitText(ctx, small, f.w - 2 * g.side, 22, 14, function (s) { return s + "px " + SANS; });
+        const small = [info.note ? info.main : "", dateIsCaption ? "" : info.dateStr].filter(Boolean).join(" · ");
+        fitText(ctx, small, f.w - 2 * g.side, 25, 15, function (s) { return "italic 500 " + s + "px " + SERIF; });
         ctx.fillStyle = "#6b6a64";
         ctx.fillText(small, f.x + f.w / 2, mid + 34);
         ctx.restore();
@@ -375,9 +376,9 @@
           ctx.fill("evenodd");
           ctx.strokeStyle = "rgba(255,214,160,.14)"; ctx.lineWidth = 1.5; rr(ctx, f.x + 0.75, f.y + 0.75, f.w - 1.5, f.h - 1.5, 17.5); ctx.stroke();
           // edge print, like the numbers along the rebate of a negative
-          ctx.fillStyle = "rgba(255,150,50,.82)"; ctx.font = "600 15px " + SANS; ctx.textBaseline = "middle";
+          ctx.fillStyle = "rgba(255,150,50,.82)"; ctx.font = "500 17px " + SERIF; ctx.textBaseline = "middle";
           const ey = f.y + (r.y - f.y) / 2 + 1;
-          spaced(ctx, "UNDERLINE 400", r.x + 6, ey, 3.2, "left");
+          spaced(ctx, "SAFETY FILM 400", r.x + 6, ey, 3.2, "left");
           const wr = spaced(ctx, "12A", r.x + r.w - 6, ey, 3.2, "right");
           const tx = r.x + r.w - 6 - wr - 12;
           ctx.beginPath(); ctx.moveTo(tx - 12, ey - 6); ctx.lineTo(tx, ey); ctx.lineTo(tx - 12, ey + 6); ctx.closePath(); ctx.fill();
@@ -390,7 +391,7 @@
         const sy = g.stripY, sh = g.stripH, stampH = story ? 38 : 30;
         const d = info.date, yy = String(d.getFullYear()).slice(2);
         const stampW = stampH * 0.56 * 8 + stampH * 0.26 * 8 + 20;
-        labelBlock(ctx, info, x0, sy + sh / 2 + (story ? -14 : -4), Math.min(560, x1 - x0 - stampW - 24), { align: "left", alpha: labelAlpha, size: story ? 27 : 26, color: "#f3e7cf", noteColor: "#f8d9a8", noteSize: story ? 44 : 38 });
+        labelBlock(ctx, info, x0, sy + sh / 2 + (story ? -14 : -4), Math.min(560, x1 - x0 - stampW - 24), { align: "left", alpha: labelAlpha, size: story ? 30 : 29, color: "#f3e7cf", noteColor: "#f8d9a8", noteSize: story ? 44 : 38 });
         const two = function (n) { return (n < 10 ? "0" : "") + n; };
         sevenSeg(ctx, yy + " " + two(d.getMonth() + 1) + " " + two(d.getDate()), x1, sy + (story ? 66 : 52), stampH, "#ff8a1f");
         madeWith(ctx, x1, sy + sh - (story ? 28 : 26), "#f3e7cf", story ? 26 : 22);
@@ -515,5 +516,5 @@
   const ALL = { clean: clean, polaroid: polaroid, film: film, torn: torn };
   function get(id) { return ALL[id] || ALL.torn; }
 
-  UL.finishes = { get: get, box: box, setFit: setFit, fitOf: fitOf, labelInfo: labelInfo, madeWith: madeWith, SERIF: SERIF, SANS: SANS, HAND: HAND, _rr: rr };
+  UL.finishes = { get: get, box: box, setFit: setFit, fitOf: fitOf, labelInfo: labelInfo, madeWith: madeWith, SERIF: SERIF, HAND: HAND, _rr: rr };
 })();

@@ -493,10 +493,14 @@
     // the card's handwriting font: wait for it, but never hang
     try {
       if (typeof document !== "undefined" && document.fonts && document.fonts.load) {
+        // the label serif (EB Garamond, regular italic) and Caveat; a missing font just rejects or times out
+        const one = function (spec) { return document.fonts.load(spec, "Aa").catch(function () {}); };
+        let timer = 0;
         await Promise.race([
-          document.fonts.load('600 40px "Caveat"', "Aa"),
-          new Promise(function (res) { setTimeout(res, 2500); })
+          Promise.all([one('500 40px "EB Garamond"'), one('italic 500 40px "EB Garamond"'), one('600 40px "Caveat"')]),
+          new Promise(function (res) { timer = setTimeout(res, 2500); })
         ]);
+        clearTimeout(timer);
       }
     } catch (e) { /* the fallback handwriting font is fine */ }
     return new Card(page, strokes, settings);

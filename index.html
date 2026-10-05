@@ -11,6 +11,9 @@
   <meta property="og:description" content="Snap a page, swipe the line you love, keep it as a card or a story. Free. Nothing leaves your phone.">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f3a5f'/%3E%3Crect x='5' y='16' width='22' height='8' rx='2' fill='%23ffe45c'/%3E%3Cpath d='M10 7v10M16 7v10M22 7v10' stroke='%23fffdf8' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preload" href="fonts/eb-garamond-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/cormorant-garamond-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/cormorant-garamond-600-italic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/caveat-600.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="src/styles.css">
   <!-- Vercel Web Analytics (page views). Same-origin once deployed; a harmless 404 until it is switched on in the Vercel dashboard. -->
@@ -129,7 +132,7 @@
         <details class="labels" id="labels">
           <summary>
             <span class="lab-ico" data-icon="book" aria-hidden="true"></span>
-            <span class="lab-text"><strong id="labelsTitle">Add the book title &amp; page</strong><small id="labelsHint">So your card says where it's from.</small></span>
+            <span class="lab-text"><strong id="labelsTitle">Add the book title &amp; page</strong><small id="labelsHint">So your card says where it’s from.</small></span>
             <span class="lab-plus" aria-hidden="true"></span>
           </summary>
           <div class="fields">
@@ -199,11 +202,17 @@
         </div>
         <h1 class="done-title" id="doneTitle" tabindex="-1">Saved.</h1>
         <p class="done-sub" id="doneSub"></p>
+        <svg class="orn" viewBox="0 0 132 16" aria-hidden="true" focusable="false">
+          <path d="M2 8H50M82 8H130" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+          <path d="M2 11.5H44M88 11.5H130" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity=".6"/>
+          <path d="M66 1.5L71.5 8 66 14.5 60.5 8Z" fill="currentColor"/>
+          <path d="M57 8C55 4.6 52.6 4.6 51 7.4M75 8C77 4.6 79.4 4.6 81 7.4M57 8C55 11.4 52.6 11.4 51 8.6M75 8C77 11.4 79.4 11.4 81 8.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
 
         <div class="tips">
           <div class="tip">
             <span class="tip-ico" data-icon="search" aria-hidden="true"></span>
-            <p><strong>Find it later.</strong> Photos reads the words on your card, so searching <b>underline</b> or your book's title brings it back.</p>
+            <p><strong>Find it later.</strong> Photos reads the words on your card, so searching your book’s title or a line you remember brings it back.</p>
           </div>
           <div class="tip" id="tipAlbum" hidden>
             <span class="tip-ico" data-icon="folder" aria-hidden="true"></span>
@@ -235,7 +244,7 @@
             <rect x="54" y="38" width="26" height="8" rx="2" fill="#ffe45c" opacity=".8"/>
             <path d="M70 66 V76 L74 72 L78 76 V64" fill="#f1c7d4" stroke="#1f3a5f" stroke-width="2" stroke-linejoin="round"/>
           </svg>
-          <h1 class="err-title" id="errTitle" tabindex="-1">Hmm, that didn't work.</h1>
+          <h1 class="err-title" id="errTitle" tabindex="-1">Hmm, that didn’t work.</h1>
           <p class="err-detail" id="errDetail"></p>
           <button id="errBtn" class="btn btn-primary btn-xl" type="button">Start over</button>
           <button id="errLink" class="link" type="button">Back to the start</button>
@@ -254,7 +263,7 @@
             <path d="M18 30 Q28 27 40 31 M18 40 Q28 37 40 41 M56 31 Q68 27 78 30" stroke="#6c6a64" stroke-width="3" stroke-linecap="round" fill="none"/>
           </svg>
           <h1 class="err-title" tabindex="-1">Underline is still waking up.</h1>
-          <p class="err-detail">Something didn't load. Check your connection and give it another go.</p>
+          <p class="err-detail">Something didn’t load. Check your connection and give it another go.</p>
           <button id="brokenBtn" class="btn btn-primary btn-xl" type="button">Refresh</button>
         </div>
       </main>

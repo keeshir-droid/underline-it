@@ -18,7 +18,11 @@
   #meta { color: #fff; margin-bottom: 8px; }
 </style>
 <link rel="preload" href="../../fonts/caveat-600.woff2" as="font" type="font/woff2" crossorigin>
-<style>@font-face { font-family: "Caveat"; font-weight: 600; src: url("../../fonts/caveat-600.woff2") format("woff2"); }</style>
+<style>
+@font-face { font-family: "Caveat"; font-weight: 600; src: url("../../fonts/caveat-600.woff2") format("woff2"); }
+@font-face { font-family: "EB Garamond"; font-weight: 500; font-style: normal; src: url("../../fonts/eb-garamond-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "EB Garamond"; font-weight: 500; font-style: italic; src: url("../../fonts/eb-garamond-500-italic.woff2") format("woff2"); }
+</style>
 </head>
 <body>
 <div id="meta">loading ...</div>
@@ -114,10 +118,16 @@
       const row = document.createElement("div"); row.className = "row"; out.appendChild(row);
       fig(row, fin, fmt, t, sc, card, fin + " " + fmt + " t=" + t);
     } else {
-      const sq = document.createElement("div"); sq.className = "row"; out.appendChild(sq);
-      for (const fin of finishes) { await card.update({ finish: fin }); fig(sq, fin, "square", 5, 0.45, card, fin + " square, t=END"); }
-      const st = document.createElement("div"); st.className = "row"; out.appendChild(st);
-      for (const fin of finishes) { await card.update({ finish: fin }); fig(st, fin, "story", 5, 0.26, card, fin + " story, t=END"); }
+      // &format=square|story shows just that row, &scale=N overrides the size (to read the labels)
+      const only = q.get("format"), gs = parseFloat(q.get("scale") || "0");
+      if (only !== "story") {
+        const sq = document.createElement("div"); sq.className = "row"; out.appendChild(sq);
+        for (const fin of finishes) { await card.update({ finish: fin }); fig(sq, fin, "square", 5, gs || 0.45, card, fin + " square, t=END"); }
+      }
+      if (only !== "square") {
+        const st = document.createElement("div"); st.className = "row"; out.appendChild(st);
+        for (const fin of finishes) { await card.update({ finish: fin }); fig(st, fin, "story", 5, gs || 0.26, card, fin + " story, t=END"); }
+      }
     }
     window.__done = true;
   } catch (e) { meta.textContent = "ERROR: " + (e && (e.stack || e.message || e)); }

@@ -38,6 +38,17 @@ const SIBLINGS = [
     return (Array.isArray(list) ? list : []).map(function (x) { return typeof x === "string" ? x : x && x.id; });
   }
   function capital(s) { s = String(s || ""); return s.charAt(0).toUpperCase() + s.slice(1); }
+  // Typographic punctuation for copy we didn't write ourselves (the engine's messages): curly apostrophes and quotes, a real ellipsis, spaced en dashes.
+  function typo(s) {
+    return String(s == null ? "" : s)
+      .replace(/(\w)'(\w)/g, "$1’$2")
+      .replace(/(^|[\s(\[])"(?=\S)/g, "$1“")
+      .replace(/"/g, "”")
+      .replace(/(^|[\s(\[])'(?=\S)/g, "$1‘")
+      .replace(/'/g, "’")
+      .replace(/\.\.\./g, "…")
+      .replace(/ - /g, " – ");
+  }
 
   /* ---------- icons (inline SVG) ---------- */
 
@@ -204,17 +215,17 @@ const SIBLINGS = [
   function normalizeError(e) {
     if (e && typeof e === "object") {
       if (typeof e.title === "string" && e.title) {
-        return { code: e.code || "unknown", title: e.title, detail: typeof e.detail === "string" ? e.detail : "" };
+        return { code: e.code || "unknown", title: typo(e.title), detail: typeof e.detail === "string" ? typo(e.detail) : "" };
       }
       if (e.error && typeof e.error.title === "string") return normalizeError(e.error);
     }
     if (e) warn("Underline:", e);
-    return { code: "unknown", title: "Hmm, that didn't work.", detail: "Give it another go. A fresh photo sometimes helps." };
+    return { code: "unknown", title: "Hmm, that didn’t work.", detail: "Give it another go. A fresh photo sometimes helps." };
   }
 
   var DEV_ERRORS = {
-    "error-heic": { code: "heic", title: "Your phone saved this in a format I can't read.", detail: "Take a screenshot of the page and use that, or switch your camera to Most Compatible." },
-    "error-not-image": { code: "not-image", title: "That doesn't look like a photo.", detail: "Pick a picture of a page: a photo from your camera, a JPG or a PNG." }
+    "error-heic": { code: "heic", title: "Your phone saved this in a format I can’t read.", detail: "Take a screenshot of the page and use that, or switch your camera to Most Compatible." },
+    "error-not-image": { code: "not-image", title: "That doesn’t look like a photo.", detail: "Pick a picture of a page: a photo from your camera, a JPG or a PNG." }
   };
 
   /* ---------- screens ---------- */
@@ -235,7 +246,7 @@ const SIBLINGS = [
   var toastTimer = 0;
   function toast(msg, ms) {
     var t = $("toast");
-    t.textContent = msg;
+    t.textContent = typo(msg);
     t.classList.add("show");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.classList.remove("show"); }, ms || 3600);
@@ -662,7 +673,7 @@ const SIBLINGS = [
     if (n > 0) {
       cap.textContent = n === 1 ? "Lovely. Swipe another line to add it, or tap Next." : "Swipe another line to add it, or tap Next.";
     } else if (S.warnNoLines) {
-      cap.textContent = "I couldn't spot lines of print here, so I'll put the mark right where you swipe.";
+      cap.textContent = "I couldn’t spot lines of print here, so I’ll put the mark right where you swipe.";
     } else {
       cap.textContent = "";
     }
@@ -848,7 +859,7 @@ const SIBLINGS = [
     if (s.page) bits.push("p. " + s.page);
     var lt = $("labelsTitle"), lh = $("labelsHint");
     if (lt) lt.textContent = bits.length ? "Book title & page" : "Add the book title & page";
-    if (lh) lh.textContent = bits.length ? bits.join(" · ") : "So your card says where it's from.";
+    if (lh) lh.textContent = bits.length ? bits.join(" · ") : "So your card says where it’s from.";
     updateShareLabels();
   }
 
@@ -914,7 +925,7 @@ const SIBLINGS = [
     var card = S.card;
     S.queue = S.queue
       .then(function () { return card.update(partial); })
-      .catch(function (e) { warn("Underline: update failed", e); toast("That one didn't stick. Try again?"); });
+      .catch(function (e) { warn("Underline: update failed", e); toast("That one didn’t stick. Try again?"); });
     scheduleImage(350);
   }
 
@@ -995,9 +1006,9 @@ const SIBLINGS = [
       if (kind === "video" && mode === "share") {
         S.videoShareFailed = true;
         renderMaking();
-        toast("Sharing didn't open. Tap Save video, then post it from your gallery.");
+        toast("Sharing didn’t open. Tap Save video, then post it from your gallery.");
       } else {
-        toast(kind === "video" ? "That didn't save. Give it another tap." : "That didn't save. Tap Save image once more.");
+        toast(kind === "video" ? "That didn’t save. Give it another tap." : "That didn’t save. Tap Save image once more.");
       }
       return;
     }
@@ -1027,7 +1038,7 @@ const SIBLINGS = [
     if (S.videoFile) { shareVideoNow(); return; }
     if (!S.card) return;
     if (S.support && S.support.video === false) {
-      showError({ code: "video-unsupported", title: "This browser can't make videos.", detail: "You can still keep your card as a picture." });
+      showError({ code: "video-unsupported", title: "This browser can’t make videos.", detail: "You can still keep your card as a picture." });
       return;
     }
     startVideo();
@@ -1093,7 +1104,7 @@ const SIBLINGS = [
     if (ready) {
       $("makeNote").textContent = canShare
         ? "Tap Share now, then pick Instagram, WhatsApp or Messages."
-        : "Save it, then post it from your gallery: Instagram, New story.";
+        : "Save it, then post it from your gallery — Instagram, New story.";
     } else {
       $("makeNote").textContent = "Hang tight, this takes a few seconds.";
     }
@@ -1115,11 +1126,11 @@ const SIBLINGS = [
   /* ---------- 5. done ---------- */
 
   function platformSub(kind, mode) {
-    if (kind === "video") return mode === "share" ? "Go post it. Someone is about to smile." : "Now post it from your gallery: Instagram, New story.";
+    if (kind === "video") return mode === "share" ? "Go post it. Someone is about to smile." : "Now post it from your gallery — Instagram, New story.";
     var p = platform();
-    if (p === "ios") return "If you tapped Save Image, it's in your Photos now.";
-    if (p === "android") return "It's in your Gallery or your Downloads.";
-    return "It's in your Downloads folder.";
+    if (p === "ios") return "If you tapped Save image, it’s in your Photos now.";
+    if (p === "android") return "It’s in your Gallery or your Downloads.";
+    return "It’s in your Downloads folder.";
   }
 
   function goDone(kind, mode) {
@@ -1336,7 +1347,7 @@ const SIBLINGS = [
         S.forceAlbumTip = true;
         goDone("image", "save");
       } else if (target === "error-video") {
-        showError({ code: "video-unsupported", title: "This browser can't make videos.", detail: "You can still keep your card as a picture." });
+        showError({ code: "video-unsupported", title: "This browser can’t make videos.", detail: "You can still keep your card as a picture." });
       }
     } catch (e) {
       showError(e);
@@ -1353,7 +1364,7 @@ const SIBLINGS = [
 
     // states that don't need the engine
     if (devScreen && devScreen.indexOf("error-") === 0 && SAMPLE_SCREENS.indexOf(devScreen) === -1) {
-      showError(DEV_ERRORS[devScreen] || { code: devScreen.slice(6), title: "Hmm, that didn't work.", detail: "Give it another go." });
+      showError(DEV_ERRORS[devScreen] || { code: devScreen.slice(6), title: "Hmm, that didn’t work.", detail: "Give it another go." });
       return;
     }
     if (devScreen === "landing") {
